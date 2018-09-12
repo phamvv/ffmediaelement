@@ -308,9 +308,10 @@
             {
                 WaitForReadyEvent.Complete();
                 var speedRatio = MediaCore.State.SpeedRatio;
+                var pitch = MediaCore.State.Pitch;
 
                 // Render silence if we don't need to output samples
-                if (MediaCore.State.IsPlaying == false || speedRatio <= 0d || MediaCore.State.HasAudio == false || AudioBuffer.ReadableCount <= 0)
+                if (MediaCore.State.IsPlaying == false || speedRatio <= 0d || MediaCore.State.HasAudio == false || AudioBuffer.ReadableCount <= 0 || pitch == 0)
                 {
                     Array.Clear(targetBuffer, targetBufferOffset, requestedBytes);
                     return requestedBytes;
@@ -340,6 +341,22 @@
                         ReadAndUseAudioProcessor(requestedBytes, speedRatio);
                     else
                         ReadAndSpeedUp(requestedBytes, true, speedRatio);
+                }
+                else if (pitch < 0)
+                {
+                    double value = pitch;
+                    if (AudioProcessor != null)
+                        ReadAndUseAudioProcessor(requestedBytes, value);
+                    else
+                        ReadAndSpeedUp(requestedBytes, true, value);
+                }
+                else if (pitch > 0)
+                {
+                    double value = pitch;
+                    if (AudioProcessor != null)
+                        ReadAndUseAudioProcessor(requestedBytes, value);
+                    else
+                        ReadAndSpeedUp(requestedBytes, true, value);
                 }
                 else
                 {
@@ -765,7 +782,9 @@
             var samplesToRequest = requestedBytes / SampleBlockSize;
 
             // Set the new tempo (without changing the pitch) according to the speed ratio
-            AudioProcessor.SetTempo(Convert.ToSingle(speedRatio));
+
+            //AudioProcessor.SetTempo(Convert.ToSingle(1));
+          //  AudioProcessor.SetPitch(0);
 
             // Sending Samples to the processor
             while (AudioProcessor.AvailableSampleCount < samplesToRequest && AudioBuffer != null)

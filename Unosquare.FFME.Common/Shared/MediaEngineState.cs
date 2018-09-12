@@ -36,6 +36,7 @@
         private readonly AtomicDouble m_SpeedRatio = new AtomicDouble(Constants.Controller.DefaultSpeedRatio);
         private readonly AtomicDouble m_Volume = new AtomicDouble(Constants.Controller.DefaultVolume);
         private readonly AtomicDouble m_Balance = new AtomicDouble(Constants.Controller.DefaultBalance);
+        private readonly AtomicDouble m_Pitch = new AtomicDouble(Constants.Controller.DefaultPitch);
         private readonly AtomicBoolean m_IsMuted = new AtomicBoolean(false);
 
         #endregion
@@ -64,6 +65,13 @@
         {
             get => m_SpeedRatio.Value;
             set => m_SpeedRatio.Value = value;
+        }
+
+        /// <inheritdoc />
+        public double Pitch
+        {
+            get => m_Pitch.Value;
+            set => m_Pitch.Value = value;
         }
 
         /// <inheritdoc />

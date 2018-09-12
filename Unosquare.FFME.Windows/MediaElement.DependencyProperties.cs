@@ -138,6 +138,28 @@ namespace Unosquare.FFME
                 OnSpeedRatioPropertyChanged,
                 OnSpeedRatioPropertyChanging));
 
+        /// <summary>
+        /// Gets/Sets the Tempo property on the MediaElement.
+        /// </summary>
+        [Category(nameof(MediaElement))]
+        [Description("Specifies how to Up or Down Pitch for the media should be rendered. 0 is normal Pitch. Value from -12 to 12")]
+        public double Pitch
+        {
+            get => (double)GetValue(PitchProperty);
+            set => SetValue(PitchProperty, value);
+        }
+
+        /// <summary>
+        /// The DependencyProperty for the MediaElement.SpeedRatio property.
+        /// </summary>
+        public static readonly DependencyProperty PitchProperty = DependencyProperty.Register(
+            nameof(Pitch), typeof(double), typeof(MediaElement),
+            new FrameworkPropertyMetadata(
+                Constants.Controller.DefaultPitch,
+                FrameworkPropertyMetadataOptions.None,
+                OnPitchPropertyChanged,
+                OnPitchPropertyChanging));
+
         private static object OnSpeedRatioPropertyChanging(DependencyObject d, object value)
         {
             if (d is MediaElement == false) return Constants.Controller.DefaultSpeedRatio;
@@ -151,10 +173,29 @@ namespace Unosquare.FFME
                 ((double)value).Clamp(Constants.Controller.MinSpeedRatio, Constants.Controller.MaxSpeedRatio);
         }
 
+        private static object OnPitchPropertyChanging(DependencyObject d, object value)
+        {
+            if (d is MediaElement == false) return Constants.Controller.DefaultPitch;
+
+            var element = (MediaElement)d;
+            if (element.MediaCore == null || element.MediaCore.IsDisposed) return Constants.Controller.DefaultPitch;
+            if (element.PropertyUpdatesWorker.IsExecutingCycle) return value;
+
+            return element.IsSeekable == false ?
+                Constants.Controller.DefaultPitch :
+                ((double)value).Clamp(Constants.Controller.MinPitch, Constants.Controller.MaxPitch);
+        }
+
         private static void OnSpeedRatioPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
         {
             if (d is MediaElement m && m.MediaCore != null && e.NewValue is double v)
                 m.MediaCore.State.SpeedRatio = v;
+        }
+
+        private static void OnPitchPropertyChanged(DependencyObject d, DependencyPropertyChangedEventArgs e)
+        {
+            if (d is MediaElement m && m.MediaCore != null && e.NewValue is double v)
+                m.MediaCore.State.Pitch = v;
         }
 
         #endregion

@@ -247,6 +247,11 @@ namespace Unosquare.FFME.Shared
         double SpeedRatio { get; }
 
         /// <summary>
+        /// Gets the playback Pitch
+        /// </summary>
+        double Pitch { get; }
+
+        /// <summary>
         /// Gets the video bit rate.
         /// </summary>
         long VideoBitRate { get; }

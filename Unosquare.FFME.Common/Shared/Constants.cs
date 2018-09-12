@@ -50,6 +50,11 @@
             public static double DefaultSpeedRatio => 1.0d;
 
             /// <summary>
+            /// The Default Pitch
+            /// </summary>
+            public static double DefaultPitch => 1;
+
+            /// <summary>
             /// The default balance
             /// </summary>
             public static double DefaultBalance => 0.0d;
@@ -73,6 +78,16 @@
             /// The maximum speed ratio
             /// </summary>
             public static double MaxSpeedRatio => 8.0d;
+
+            /// <summary>
+            /// The minimum pitch
+            /// </summary>
+            public static double MinPitch => 0;
+
+            /// <summary>
+            /// The maximum pitch
+            /// </summary>
+            public static double MaxPitch => 12.0d;
 
             /// <summary>
             /// The minimum balance
