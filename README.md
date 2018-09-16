@@ -16,6 +16,7 @@
 - Current Status: (2018-06-03) - Release 4.0.260 is now available, (see the <a href="https://github.com/unosquare/ffmediaelement/releases">Releases</a>)
 - NuGet Package available here: https://www.nuget.org/packages/FFME.Windows/
 - FFmpeg Version: <a href="https://ffmpeg.zeranoe.com/builds/win32/shared/ffmpeg-4.0-win32-shared.zip">4.0.0 (32-bit)</a>
+- SoundTouch libary : <a href="https://www.surina.net/soundtouch/download.html">Version 2.1</a>
 
 *Please note the current NuGet realease might require a different version of the FFmpeg binaries than the ones of the current state of the source code.*
 
