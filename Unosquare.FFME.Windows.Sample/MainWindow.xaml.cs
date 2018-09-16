@@ -249,10 +249,8 @@
             // Seek to left
             if (e.Key == Key.Left)
             {
-                //if (Media.IsPlaying) await Media.Pause();
-                //Media.Position = Media.PositionPrevious;
                 if (Media.IsPlaying)
-                    Media.Balance -= 0.1;
+                    Media.SpeedRatio -= 0.05;
 
                 return;
             }
@@ -260,10 +258,8 @@
             // Seek to right
             if (e.Key == Key.Right)
             {
-                //if (Media.IsPlaying) await Media.Pause();
-                //Media.Position = Media.PositionNext;
                 if (Media.IsPlaying)
-                    Media.Balance += 0.1;
+                    Media.SpeedRatio += 0.05;
 
                 return;
             }
@@ -293,7 +289,7 @@
             if (e.Key == Key.Up)
             {
                 // Media.SpeedRatio += 0.05;
-                Media.Pitch += 0.02;
+                Media.Pitch += 0.05;
                 return;
             }
 
@@ -301,7 +297,7 @@
             if (e.Key == Key.Down)
             {
                 // Media.SpeedRatio -= 0.05;   
-                Media.Pitch -= 0.02;
+                Media.Pitch -= 0.05;
                 return;
             }
 

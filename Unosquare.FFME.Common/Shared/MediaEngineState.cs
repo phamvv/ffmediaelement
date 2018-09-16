@@ -530,6 +530,9 @@
 
             // Reset controller properties
             SpeedRatio = Constants.Controller.DefaultSpeedRatio;
+            Pitch = Constants.Controller.DefaultPitch;
+            Volume = Constants.Controller.DefaultVolume;
+            Balance = Constants.Controller.DefaultBalance;
 
             if (oldMediaState != newMediaState)
                 MediaCore.SendOnMediaStateChanged(oldMediaState, newMediaState);

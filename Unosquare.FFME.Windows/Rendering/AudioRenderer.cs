@@ -24,7 +24,7 @@
         private const double SyncThresholdLagging = 100;
         private const double SyncThresholdLeading = -25;
         private const int SyncThresholdMaxStep = 25;
-        private const int SyncLockTimeout = 100;
+        private const int SyncLockTimeout = 10;
 
         private readonly IWaitEvent WaitForReadyEvent = WaitEventFactory.Create(isCompleted: false, useSlim: true);
         private readonly object SyncLock = new object();
@@ -310,53 +310,24 @@
                 var speedRatio = MediaCore.State.SpeedRatio;
                 var pitch = MediaCore.State.Pitch;
 
+                #region change speed
+
                 // Render silence if we don't need to output samples
-                if (MediaCore.State.IsPlaying == false || speedRatio <= 0d || MediaCore.State.HasAudio == false || AudioBuffer.ReadableCount <= 0 || pitch == 0)
+                if (MediaCore.State.IsPlaying == false || speedRatio <= 0d || MediaCore.State.HasAudio == false || AudioBuffer.ReadableCount <= 0 || pitch <= 0)
                 {
                     Array.Clear(targetBuffer, targetBufferOffset, requestedBytes);
                     return requestedBytes;
                 }
 
                 // Ensure a pre-allocated ReadBuffer
-                if (ReadBuffer == null || ReadBuffer.Length < Convert.ToInt32(requestedBytes * Constants.Controller.MaxSpeedRatio))
-                    ReadBuffer = new byte[Convert.ToInt32(requestedBytes * Constants.Controller.MaxSpeedRatio)];
-
-                // First part of DSP: Perform AV Synchronization if needed
-                if (MediaCore.State.HasVideo && Synchronize(targetBuffer, targetBufferOffset, requestedBytes, speedRatio) == false)
-                    return requestedBytes;
+                if (ReadBuffer == null || ReadBuffer.Length < Convert.ToInt32(requestedBytes * 8d))
+                    ReadBuffer = new byte[Convert.ToInt32(requestedBytes * 8d)];
 
                 var startPosition = Position;
-
-                // Perform DSP
-                if (speedRatio < 1.0)
+                
+                if (pitch != 1 || speedRatio != 1)
                 {
-                    if (AudioProcessor != null)
-                        ReadAndUseAudioProcessor(requestedBytes, speedRatio);
-                    else
-                        ReadAndSlowDown(requestedBytes, speedRatio);
-                }
-                else if (speedRatio > 1.0)
-                {
-                    if (AudioProcessor != null)
-                        ReadAndUseAudioProcessor(requestedBytes, speedRatio);
-                    else
-                        ReadAndSpeedUp(requestedBytes, true, speedRatio);
-                }
-                else if (pitch < 0)
-                {
-                    double value = pitch;
-                    if (AudioProcessor != null)
-                        ReadAndUseAudioProcessor(requestedBytes, value);
-                    else
-                        ReadAndSpeedUp(requestedBytes, true, value);
-                }
-                else if (pitch > 0)
-                {
-                    double value = pitch;
-                    if (AudioProcessor != null)
-                        ReadAndUseAudioProcessor(requestedBytes, value);
-                    else
-                        ReadAndSpeedUp(requestedBytes, true, value);
+                    ReadAndUseAudioProcessor(requestedBytes, speedRatio, pitch);
                 }
                 else
                 {
@@ -365,13 +336,14 @@
                         Array.Clear(targetBuffer, targetBufferOffset, requestedBytes);
                         return requestedBytes;
                     }
-
                     AudioBuffer.Read(requestedBytes, ReadBuffer, 0);
                 }
 
                 ApplyVolumeAndBalance(targetBuffer, targetBufferOffset, requestedBytes);
-                MediaElement.RaiseRenderingAudioEvent(
-                    targetBuffer, requestedBytes, startPosition, WaveFormat.ConvertByteSizeToDuration(requestedBytes));
+                MediaElement.RaiseRenderingAudioEvent(targetBuffer, requestedBytes, startPosition, WaveFormat.ConvertByteSizeToDuration(requestedBytes));
+
+                #endregion
+
             }
             catch (Exception ex)
             {
@@ -433,7 +405,8 @@
             }
 
             // Initialize the SoundTouch Audio Processor (if available)
-            AudioProcessor = (SoundTouch.IsAvailable == false) ? null : new SoundTouch();
+            //AudioProcessor = (SoundTouch.IsAvailable == false) ? null : new SoundTouch();
+            AudioProcessor = new SoundTouch();
             if (AudioProcessor != null)
             {
                 AudioProcessor.SetChannels(Convert.ToUInt32(WaveFormat.Channels));
@@ -773,18 +746,16 @@
         /// <param name="requestedBytes">The requested bytes.</param>
         /// <param name="speedRatio">The speed ratio.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void ReadAndUseAudioProcessor(int requestedBytes, double speedRatio)
+        private void ReadAndUseAudioProcessor(int requestedBytes, double speedRatio,double Pitch)
         {
-            if (AudioProcessorBuffer == null || AudioProcessorBuffer.Length < Convert.ToInt32(requestedBytes * Constants.Controller.MaxSpeedRatio))
-                AudioProcessorBuffer = new short[Convert.ToInt32(requestedBytes * Constants.Controller.MaxSpeedRatio / Constants.Audio.BytesPerSample)];
+            if (AudioProcessorBuffer == null || AudioProcessorBuffer.Length < Convert.ToInt32(requestedBytes * 8d))
+                AudioProcessorBuffer = new short[Convert.ToInt32(requestedBytes * 8d / Constants.Audio.BytesPerSample)];
 
-            var bytesToRead = Convert.ToInt32((requestedBytes * speedRatio).ToMultipleOf(SampleBlockSize));
+            var bytesToRead = Convert.ToInt32((requestedBytes * 1d).ToMultipleOf(SampleBlockSize));
             var samplesToRequest = requestedBytes / SampleBlockSize;
-
             // Set the new tempo (without changing the pitch) according to the speed ratio
-
-            //AudioProcessor.SetTempo(Convert.ToSingle(1));
-          //  AudioProcessor.SetPitch(0);
+           AudioProcessor.SetPitch((float)Pitch);
+           AudioProcessor.SetTempo(Convert.ToSingle(speedRatio));
 
             // Sending Samples to the processor
             while (AudioProcessor.AvailableSampleCount < samplesToRequest && AudioBuffer != null)
@@ -802,7 +773,7 @@
             var numSamples = AudioProcessor.ReceiveSamplesI16(AudioProcessorBuffer, Convert.ToUInt32(samplesToRequest));
             Array.Clear(ReadBuffer, 0, ReadBuffer.Length);
             Buffer.BlockCopy(AudioProcessorBuffer, 0, ReadBuffer, 0, Convert.ToInt32(numSamples * SampleBlockSize));
-        }
+        }      
 
         /// <summary>
         /// Applies volume and balance to the audio samples stored in RedBuffer and writes them
