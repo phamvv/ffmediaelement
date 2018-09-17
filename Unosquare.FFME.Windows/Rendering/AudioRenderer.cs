@@ -405,8 +405,7 @@
             }
 
             // Initialize the SoundTouch Audio Processor (if available)
-            //AudioProcessor = (SoundTouch.IsAvailable == false) ? null : new SoundTouch();
-            AudioProcessor = new SoundTouch();
+            AudioProcessor = (SoundTouch.IsAvailable == false) ? null : new SoundTouch();
             if (AudioProcessor != null)
             {
                 AudioProcessor.SetChannels(Convert.ToUInt32(WaveFormat.Channels));
@@ -420,7 +419,7 @@
 
             // Create the Audio Buffer
             SampleBlockSize = Constants.Audio.BytesPerSample * Constants.Audio.ChannelCount;
-            var bufferLength = WaveFormat.ConvertMillisToByteSize(2000); // 2-second buffer
+            var bufferLength = WaveFormat.ConvertMillisToByteSize(3000); // 3-second buffer
             AudioBuffer = new CircularBuffer(bufferLength);
             AudioDevice.Start();
         }
@@ -739,23 +738,25 @@
         }
 
         /// <summary>
-        /// Reads from the Audio Buffer and uses the SoundTouch audio processor to adjust tempo
+        /// Reads from the Audio Buffer and uses the SoundTouch audio processor to adjust Speed and PitchShift
         /// The result is put to the first requestedBytes count of the ReadBuffer.
         /// This feature is experimental
         /// </summary>
         /// <param name="requestedBytes">The requested bytes.</param>
         /// <param name="speedRatio">The speed ratio.</param>
+        /// <param name="pitch">The Pitch Shift value</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void ReadAndUseAudioProcessor(int requestedBytes, double speedRatio,double Pitch)
+        private void ReadAndUseAudioProcessor(int requestedBytes, double speedRatio,double pitch)
         {
             if (AudioProcessorBuffer == null || AudioProcessorBuffer.Length < Convert.ToInt32(requestedBytes * 8d))
                 AudioProcessorBuffer = new short[Convert.ToInt32(requestedBytes * 8d / Constants.Audio.BytesPerSample)];
 
             var bytesToRead = Convert.ToInt32((requestedBytes * 1d).ToMultipleOf(SampleBlockSize));
             var samplesToRequest = requestedBytes / SampleBlockSize;
+
             // Set the new tempo (without changing the pitch) according to the speed ratio
-           AudioProcessor.SetPitch((float)Pitch);
-           AudioProcessor.SetTempo(Convert.ToSingle(speedRatio));
+            AudioProcessor.SetTempo(Convert.ToSingle(speedRatio));
+            AudioProcessor.SetPitch((float)pitch);
 
             // Sending Samples to the processor
             while (AudioProcessor.AvailableSampleCount < samplesToRequest && AudioBuffer != null)
@@ -820,7 +821,7 @@
 
                 if (isLeftSample && Math.Abs(leftVolume - 1.0) > double.Epsilon)
                     currentSample = Convert.ToInt16(currentSample * leftVolume);
-                else if (isLeftSample == false && Math.Abs(leftVolume - 1.0) > double.Epsilon)
+                else if (isLeftSample == false && Math.Abs(rightVolume - 1.0) > double.Epsilon)
                     currentSample = Convert.ToInt16(currentSample * rightVolume);
 
                 targetBuffer.PutAudioSample(targetBufferOffset + sourceBufferOffset, currentSample);
