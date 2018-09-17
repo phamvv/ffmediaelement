@@ -183,12 +183,12 @@
                 if (videoStream.IsInterlaced)
                     videoFilter.Append("yadif,");
 
-                // Scale down to maximum 1080p screen resolution.
-                if (videoStream.PixelHeight > 1080)
-                {
-                    // e.Options.VideoHardwareDevice = null;
-                    videoFilter.Append("scale=-1:1080,");
-                }
+                //Scale down to maximum 1080p screen resolution.
+                //if (videoStream.PixelHeight >= 1080)
+                //{
+                //    //e.Options.VideoHardwareDevice = null;                
+                //    videoFilter.Append("scale=-1:1080,");
+                //}
 
                 e.Options.VideoFilter = videoFilter.ToString().TrimEnd(',');
 
