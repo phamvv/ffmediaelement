@@ -89,7 +89,7 @@
 
             MouseLeave += (s, e) =>
             {
-                LastMouseMoveTime = DateTime.UtcNow.Subtract(TimeSpan.FromSeconds(10));
+                LastMouseMoveTime = DateTime.UtcNow.Subtract(TimeSpan.FromSeconds(5));
             };
 
             MouseMoveTimer = new DispatcherTimer(DispatcherPriority.Background)
@@ -154,7 +154,7 @@
             Media.MessageLogged += OnMediaMessageLogged;
 
             // Complex examples of Media Rendering Events
-            BindMediaRenderingEvents();
+          //  BindMediaRenderingEvents();
         }
 
         #endregion
@@ -175,13 +175,13 @@
             if (Content is UIElement contentElement &&
                 VisualTreeHelper.GetParent(contentElement) is ContentPresenter presenter)
             {
+                MinWidth = ActualWidth / 2;
+                MinHeight = ActualHeight / 2;
                 presenter.MinWidth = MinWidth;
-                presenter.MinHeight = MinHeight;
-
-                SizeToContent = SizeToContent.WidthAndHeight;
-                MinWidth = ActualWidth;
-                MinHeight = ActualHeight;
-                SizeToContent = SizeToContent.Manual;
+                presenter.MinHeight = MinHeight;              
+                Width = ActualWidth;
+                Height = ActualHeight;
+                SizeToContent = SizeToContent.Manual;   
             }
 
             // Place on secondary screen by default if there is one
@@ -374,11 +374,11 @@
         /// <param name="e">The <see cref="MouseWheelEventArgs"/> instance containing the event data.</param>
         private void OnMouseWheelChange(object sender, MouseWheelEventArgs e)
         {
-            if (Media.IsOpen == false || Media.IsOpening || Media.IsChanging)
-                return;
+            //if (Media.IsOpen == false || Media.IsOpening || Media.IsChanging)
+            //    return;
 
-            var delta = (e.Delta / 2000d).ToMultipleOf(0.05d);
-            ViewModel.Controller.MediaElementZoom = Math.Round(App.Current.ViewModel.Controller.MediaElementZoom + delta, 2);
+            //var delta = (e.Delta / 2000d).ToMultipleOf(0.05d);
+            //ViewModel.Controller.MediaElementZoom = Math.Round(App.Current.ViewModel.Controller.MediaElementZoom + delta, 2);
         }
 
         #endregion

@@ -9,7 +9,7 @@
     <!-- ReSharper disable once Xaml.BindingWithContextNotResolved -->
     <Border Name="PropertyExplorerPanel" Width="280" Style="{StaticResource SidePanelContainerBorderStyle}" 
             d:DataContext="{d:DesignInstance ffme:MediaElement, IsDesignTimeCreatable=True}"
-            DataContext="{Binding Path=App.MediaElement}">
+            DataContext="{Binding Path=App.MediaElement}" Margin="0,16,20,0">
         <DockPanel LastChildFill="True">
             <!-- The Content -->
             <Grid x:Name="PropertyExplorerPanelContent">

@@ -18,9 +18,8 @@
             <DoubleAnimation To="0" Duration="0:0:0.300" FillBehavior="HoldEnd" />
         </Storyboard>
     </Window.Resources>
-    <Grid Name="Player">
-        <ffme:MediaElement Name="Media" Background="Black" LoadedBehavior="Play" />
-
+    <Grid Name="Player">           
+        <ffme:MediaElement Name="Media" Background="Black" LoadedBehavior="Play" Stretch="Fill"/>
         <DockPanel x:Name="LayoutPanel" LastChildFill="False">
 
             <controls:ControllerPanelControl
@@ -38,7 +37,6 @@
                 DockPanel.Dock="Right" 
                 Visibility="{Binding IsPropertiesPanelOpen, Converter={StaticResource BooleanToVisibilityConverter}}"/>
         </DockPanel>
-
     </Grid>
 
 </Window>

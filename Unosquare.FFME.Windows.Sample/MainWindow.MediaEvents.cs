@@ -141,12 +141,12 @@
                 e.Options.SubtitleStream = englishSubtitleStream;
             }
 
-            // An example of specifically selecting an audio stream
-            var audioStreams = e.Info.Streams.Where(kvp => kvp.Value.CodecType == AVMediaType.AVMEDIA_TYPE_AUDIO).Select(kvp => kvp.Value);
-            var englishAudioStream = audioStreams.FirstOrDefault(s => s.Language != null && s.Language.ToLowerInvariant().StartsWith("en"));
-            if (englishAudioStream != null)
+            // An example of specifically selecting an audio stream, run stream 1 first if have 2 audio stream
+            var audioStreams = e.Info.Streams.Where(kvp => kvp.Value.CodecType == AVMediaType.AVMEDIA_TYPE_AUDIO).Select(kvp => kvp.Value);            
+            var selectAudioStream = audioStreams.FirstOrDefault(s => s != null && s.StreamIndex == 1);
+            if (selectAudioStream != null)
             {
-                e.Options.AudioStream = englishAudioStream;
+                e.Options.AudioStream = selectAudioStream;
             }
 
             // Setting Advanced Video Stream Options is also possible

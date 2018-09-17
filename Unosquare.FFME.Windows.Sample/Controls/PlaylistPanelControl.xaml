@@ -10,7 +10,7 @@
     <!-- The Glass Background Border -->
     <Border
             Style="{StaticResource SidePanelContainerBorderStyle}"
-            IsEnabled="{Binding Playlist.IsPlaylistEnabled}">
+            IsEnabled="{Binding Playlist.IsPlaylistEnabled}" Margin="0,16,20,0">
         <DockPanel LastChildFill="True">
 
             <!-- The Toolbox -->

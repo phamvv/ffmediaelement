@@ -5,14 +5,14 @@
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
              mc:Ignorable="d"
              d:DataContext="{StaticResource ViewModel}">
-    <Grid Name="Controls" Visibility="Visible" Height="250" Background="{x:Null}">
+    <Grid Name="Controls" Visibility="Visible" Height="100" Background="{x:Null}">
         <Canvas IsHitTestVisible="False" Background="{DynamicResource ShadedBackgroundBrush}" />
 
         <Grid VerticalAlignment="Bottom">
             <Grid.RowDefinitions>
-                <RowDefinition Height="30"></RowDefinition>
-                <RowDefinition Height="40"></RowDefinition>
-                <RowDefinition Height="70"></RowDefinition>
+                <RowDefinition Height="25"></RowDefinition>
+                <RowDefinition Height="20"></RowDefinition>
+                <RowDefinition Height="50"></RowDefinition>
             </Grid.RowDefinitions>
 
             <Slider Name="PositionSlider" Grid.Row="0" Margin="10,0" Cursor="Hand"
@@ -90,12 +90,12 @@
 
                                 <!-- Speed Ratio Slider -->
                                 <TextBlock Grid.Row="2" Grid.Column="0">Speed</TextBlock>
-                                <Slider IsEnabled="{Binding Controller.IsSpeedRatioEnabled}" Grid.Row="2" Grid.Column="1" Style="{DynamicResource CustomSliderStyle}" Minimum="0.0" Maximum="2" Value="{Binding App.MediaElement.SpeedRatio}" SmallChange="0.1" TickFrequency="0.1" />
+                                <Slider IsEnabled="{Binding Controller.IsSpeedRatioEnabled}" Grid.Row="2" Grid.Column="1" Style="{DynamicResource CustomSliderStyle}" Minimum="0.0" Maximum="2" Value="{Binding App.MediaElement.SpeedRatio}" SmallChange="0.05" TickFrequency="0.05" />
                                 <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding App.MediaElement.SpeedRatio, Mode=OneWay, Converter={StaticResource PercentageFormatter}}" />
                                 
                                 <!-- Pitch Slider -->
                                 <TextBlock Grid.Row="3" Grid.Column="0">Pitch</TextBlock>
-                                <Slider IsEnabled="{Binding Controller.IsPitchEnabled}" Grid.Row="3" Grid.Column="1" Style="{DynamicResource CustomSliderStyle}" Maximum="2" Value="{Binding App.MediaElement.Pitch}" LargeChange="0.1" SmallChange="0.1" TickFrequency="1"/>
+                                <Slider IsEnabled="{Binding Controller.IsPitchEnabled}" Grid.Row="3" Grid.Column="1" Style="{DynamicResource CustomSliderStyle}" Maximum="2" Value="{Binding App.MediaElement.Pitch}" LargeChange="0.05" SmallChange="0.05" TickFrequency="0.05"/>
                                 <TextBlock Grid.Row="3" Grid.Column="2" Text="{Binding App.MediaElement.Pitch, Mode=OneWay, Converter={StaticResource PercentageFormatter}}" />
 
                             </Grid>

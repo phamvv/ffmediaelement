@@ -74,7 +74,7 @@
         }
 
         /// <summary>
-        /// Gets or sets a value indicating whether this instance is Tempo enabled.
+        /// Gets or sets a value indicating whether this instance is Pitch enabled.
         /// </summary>
         public bool IsPitchEnabled
         {
