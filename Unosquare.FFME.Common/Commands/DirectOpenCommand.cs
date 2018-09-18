@@ -114,7 +114,6 @@
                         {
                             // Set the default protocol Prefix
                             mediaUrl = Source.LocalPath;
-                            containerConfig.ProtocolPrefix = "async";
                         }
                     }
                     catch { /* Ignore exception and continue */ }
