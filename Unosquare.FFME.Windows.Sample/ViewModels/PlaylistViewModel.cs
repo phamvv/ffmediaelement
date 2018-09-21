@@ -47,7 +47,7 @@
                 Directory.CreateDirectory(ThumbsDirectory);
 
             PlaylistFilePath = Path.Combine(root.AppDataDirectory, "ffme.m3u8");
-
+        //    MessageBox.Show(PlaylistFilePath, "luu");
             Entries = new CustomPlaylist(this);
             EntriesView = CollectionViewSource.GetDefaultView(Entries);
             EntriesView.Filter = item =>

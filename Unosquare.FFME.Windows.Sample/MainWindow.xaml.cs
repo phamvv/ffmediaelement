@@ -346,6 +346,24 @@
                 return;
             }
 
+            //change audio stream
+            if(e.Key == Key.F5)
+            {
+                if (ChangeAudioStream.AudioTrackCount > 1)
+                {
+                    if (ChangeAudioStream.audioTrack == 2)
+                        ChangeAudioStream.audioTrack = 1;
+                    else
+                        ChangeAudioStream.audioTrack = 2;
+
+                    StreamCycleMediaType = MediaType.Audio;
+                    await Media.ChangeMedia();
+                    return;
+                }
+                else
+                    MessageBox.Show("1 Audio Track only");
+            }
+
             // Exit fullscreen
             if (e.Key == Key.Escape && WindowStyle == WindowStyle.None)
             {

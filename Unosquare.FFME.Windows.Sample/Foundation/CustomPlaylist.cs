@@ -176,7 +176,7 @@
         public void LoadEntries()
         {
             lock (SyncRoot)
-            {
+            {            
                 Load(ViewModel.PlaylistFilePath);
             }
         }

@@ -419,7 +419,7 @@
 
             // Create the Audio Buffer
             SampleBlockSize = Constants.Audio.BytesPerSample * Constants.Audio.ChannelCount;
-            var bufferLength = WaveFormat.ConvertMillisToByteSize(3000); // 3-second buffer
+            var bufferLength = WaveFormat.ConvertMillisToByteSize(2000); // 3-second buffer
             AudioBuffer = new CircularBuffer(bufferLength);
             AudioDevice.Start();
         }

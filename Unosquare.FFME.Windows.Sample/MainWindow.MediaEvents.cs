@@ -6,6 +6,7 @@
     using Platform;
     using Shared;
     using System;
+    using System.Collections.Generic;
     using System.Diagnostics;
     using System.IO;
     using System.Linq;
@@ -13,7 +14,7 @@
     using System.Windows;
 
     public partial class MainWindow
-    {
+    {      
         #region Logging Event Handlers
 
         /// <summary>
@@ -142,11 +143,12 @@
             }
 
             // An example of specifically selecting an audio stream, run stream 1 first if have 2 audio stream
-            var audioStreams = e.Info.Streams.Where(kvp => kvp.Value.CodecType == AVMediaType.AVMEDIA_TYPE_AUDIO).Select(kvp => kvp.Value);            
-            var selectAudioStream = audioStreams.FirstOrDefault(s => s != null && s.StreamIndex == 1);
+            ChangeAudioStream.AudioStreams = e.Info.Streams.Where(kvp => kvp.Value.CodecType == AVMediaType.AVMEDIA_TYPE_AUDIO).Select(kvp => kvp.Value);
+            var selectAudioStream = ChangeAudioStream.AudioStreams.FirstOrDefault(s => s != null && s.StreamIndex == ChangeAudioStream.audioTrack);
+
             if (selectAudioStream != null)
             {
-                e.Options.AudioStream = selectAudioStream;
+                e.Options.AudioStream = selectAudioStream;              
             }
 
             // Setting Advanced Video Stream Options is also possible
@@ -184,11 +186,11 @@
                     videoFilter.Append("yadif,");
 
                 //Scale down to maximum 1080p screen resolution.
-                //if (videoStream.PixelHeight >= 1080)
-                //{
-                //    //e.Options.VideoHardwareDevice = null;                
-                //    videoFilter.Append("scale=-1:1080,");
-                //}
+                if (videoStream.PixelHeight >= 1080)
+                {
+                    //e.Options.VideoHardwareDevice = null;                
+                    videoFilter.Append("scale=-1:1080,");
+                }
 
                 e.Options.VideoFilter = videoFilter.ToString().TrimEnd(',');
 
@@ -239,8 +241,8 @@
 
             switch (StreamCycleMediaType)
             {
-                case MediaType.Audio:
-                    currentIndex = availableStreams.IndexOf(e.Options.AudioStream);
+                case MediaType.Audio:                              
+                    currentIndex = availableStreams.IndexOf(ChangeAudioStream.AudioStreams.Single(s => s != null && s.StreamIndex == ChangeAudioStream.audioTrack));
                     break;
 
                 case MediaType.Video:
@@ -254,8 +256,7 @@
                 default:
                     return;
             }
-
-            currentIndex += 1;
+         
             if (currentIndex >= availableStreams.Count)
                 currentIndex = 0;
 
@@ -315,5 +316,15 @@
         }
 
         #endregion
+    }
+
+    public static class ChangeAudioStream
+    {
+        public static IEnumerable<StreamInfo> AudioStreams;
+        public static int audioTrack { get; set; } = 1;       
+        public static int AudioTrackCount
+        {
+            get { return AudioStreams.Count(); }
+        }
     }
 }
