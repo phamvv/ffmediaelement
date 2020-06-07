@@ -297,9 +297,10 @@
             try
             {
                 var speedRatio = MediaCore.State.SpeedRatio;
+                var pitchRatio = MediaCore.State.PitchRatio;
 
                 // Render silence if we don't need to output samples
-                if (MediaCore.State.IsPlaying == false || speedRatio <= 0d || MediaCore.State.HasAudio == false || AudioBuffer.ReadableCount <= 0)
+                if (MediaCore.State.IsPlaying == false || speedRatio <= 0d || MediaCore.State.HasAudio == false || AudioBuffer.ReadableCount <= 0 || pitchRatio <= 0)
                 {
                     Array.Clear(targetBuffer, targetBufferOffset, requestedBytes);
                     return requestedBytes;
@@ -319,14 +320,14 @@
                 if (speedRatio < 1.0)
                 {
                     if (AudioProcessor != null)
-                        ReadAndUseAudioProcessor(requestedBytes, speedRatio);
+                        ReadAndUseAudioProcessor(requestedBytes, speedRatio, pitchRatio);
                     else
                         ReadAndSlowDown(requestedBytes, speedRatio);
                 }
                 else if (speedRatio > 1.0)
                 {
                     if (AudioProcessor != null)
-                        ReadAndUseAudioProcessor(requestedBytes, speedRatio);
+                        ReadAndUseAudioProcessor(requestedBytes, speedRatio, pitchRatio);
                     else
                         ReadAndSpeedUp(requestedBytes, true, speedRatio);
                 }
@@ -338,7 +339,17 @@
                         return requestedBytes;
                     }
 
-                    AudioBuffer.Read(requestedBytes, ReadBuffer, 0);
+                    if(pitchRatio != 1.0)
+                    {
+                        if (AudioProcessor != null)
+                            ReadAndUseAudioProcessor(requestedBytes, speedRatio, pitchRatio);
+                        else
+                            AudioBuffer.Read(requestedBytes, ReadBuffer, 0);
+                    }
+                    else
+                    {
+                        AudioBuffer.Read(requestedBytes, ReadBuffer, 0);
+                    }
                 }
 
                 ApplyVolumeAndBalance(targetBuffer, targetBufferOffset, requestedBytes);
@@ -715,8 +726,9 @@
         /// </summary>
         /// <param name="requestedBytes">The requested bytes.</param>
         /// <param name="speedRatio">The speed ratio.</param>
+        /// <param name="pitch">The pitch ratio value.</param>
         [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        private void ReadAndUseAudioProcessor(int requestedBytes, double speedRatio)
+        private void ReadAndUseAudioProcessor(int requestedBytes, double speedRatio, double pitch)
         {
             if (AudioProcessorBuffer == null || AudioProcessorBuffer.Length < Convert.ToInt32(requestedBytes * Constants.MaxSpeedRatio))
                 AudioProcessorBuffer = new short[Convert.ToInt32(requestedBytes * Constants.MaxSpeedRatio / Constants.AudioBytesPerSample)];
@@ -726,6 +738,7 @@
 
             // Set the new tempo (without changing the pitch) according to the speed ratio
             AudioProcessor.SetTempo(Convert.ToSingle(speedRatio));
+            AudioProcessor.SetPitch(Convert.ToSingle(pitch));
 
             // Sending Samples to the processor
             while (AudioProcessor.AvailableSampleCount < samplesToRequest && AudioBuffer != null)

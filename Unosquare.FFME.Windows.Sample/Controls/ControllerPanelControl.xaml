@@ -78,6 +78,7 @@
                                     <RowDefinition Height="*" />
                                     <RowDefinition Height="*" />
                                     <RowDefinition Height="*" />
+                                    <RowDefinition Height="*" />
                                 </Grid.RowDefinitions>
                                 <Grid.ColumnDefinitions>
                                     <ColumnDefinition Width="60" />
@@ -99,6 +100,11 @@
                                 <TextBlock Grid.Row="2" Grid.Column="0">Speed</TextBlock>
                                 <Slider IsEnabled="{Binding Controller.IsSpeedRatioEnabled}" Grid.Row="2" Grid.Column="1" Style="{DynamicResource CustomSliderStyle}" Minimum="0.0" Maximum="8.0" Value="{Binding MediaElement.SpeedRatio}" />
                                 <TextBlock Grid.Row="2" Grid.Column="2" Text="{Binding MediaElement.SpeedRatio, Mode=OneWay, Converter={StaticResource PercentageFormatter}}" />
+
+                                <!-- Pitch Ratio Slider -->
+                                <TextBlock Grid.Row="3" Grid.Column="0">Pitch</TextBlock>
+                                <Slider IsEnabled="{Binding Controller.IsPitchRatioEnabled}" Grid.Row="3" Grid.Column="1" Style="{DynamicResource CustomSliderStyle}" Minimum="0.0" Maximum="2.0" Value="{Binding MediaElement.PitchRatio}" />
+                                <TextBlock Grid.Row="3" Grid.Column="2" Text="{Binding MediaElement.PitchRatio, Mode=OneWay, Converter={StaticResource PercentageFormatter}}" />
 
                             </Grid>
                         </Border>

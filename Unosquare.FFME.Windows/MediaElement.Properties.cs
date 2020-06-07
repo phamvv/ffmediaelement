@@ -283,6 +283,41 @@ namespace Unosquare.FFME
 
         #endregion
 
+        #region PitchRatio Dependency Property
+
+        /// <summary>
+        /// Gets/Sets the SpeedRatio property on the MediaElement.
+        /// </summary>
+        [Category(nameof(MediaElement))]
+        [Description("Specifies how pitch up or how pitch down the media should be rendered. 1.0 is normal pitch. pitch < 1 is pitch down, pitch > 1 is pitch up")]
+        public double PitchRatio
+        {
+            get => (double)GetValue(PitchRatioProperty);
+            set => SetValue(PitchRatioProperty, value);
+        }
+
+        /// <summary>
+        /// The DependencyProperty for the MediaElement.SpeedRatio property.
+        /// </summary>
+        public static readonly DependencyProperty PitchRatioProperty = DependencyProperty.Register(
+            nameof(PitchRatio), typeof(double), typeof(MediaElement),
+            new FrameworkPropertyMetadata(Constants.DefaultPitchRatio, null, OnPitchRatioPropertyChanging));
+
+        private static object OnPitchRatioPropertyChanging(DependencyObject d, object value)
+        {
+            if (d == null || d is MediaElement == false)
+                return Constants.DefaultPitchRatio;
+
+            var element = (MediaElement)d;
+            if (element.IsStateUpdating)
+                return value;
+
+            element.MediaCore.State.PitchRatio = (double)value;
+            return element.MediaCore.State.PitchRatio;
+        }
+
+        #endregion
+
         #region Position Dependency Property
 
         /// <summary>

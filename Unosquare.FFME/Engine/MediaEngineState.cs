@@ -31,6 +31,7 @@
         private readonly AtomicTimeSpan m_FramePosition = new AtomicTimeSpan(default);
         private readonly AtomicTimeSpan m_Position = new AtomicTimeSpan(default);
         private readonly AtomicDouble m_SpeedRatio = new AtomicDouble(Constants.DefaultSpeedRatio);
+        private readonly AtomicDouble m_PitchRatio = new AtomicDouble(Constants.DefaultPitchRatio);
         private readonly AtomicDouble m_Volume = new AtomicDouble(Constants.DefaultVolume);
         private readonly AtomicDouble m_Balance = new AtomicDouble(Constants.DefaultBalance);
         private readonly AtomicBoolean m_IsMuted = new AtomicBoolean(false);
@@ -105,6 +106,12 @@
         {
             get => m_SpeedRatio.Value;
             set => SetProperty(m_SpeedRatio, value.Clamp(Constants.MinSpeedRatio, Constants.MaxSpeedRatio));
+        }
+
+        public double PitchRatio
+        {
+            get => m_PitchRatio.Value;
+            set => SetProperty(m_PitchRatio, value.Clamp(Constants.MinPitchRatio, Constants.MaxPitchRatio));
         }
 
         /// <inheritdoc />

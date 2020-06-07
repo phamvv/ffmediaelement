@@ -20,6 +20,7 @@
         private Visibility m_IsMediaOpenVisibility = Visibility.Visible;
         private bool m_IsAudioControlEnabled = true;
         private bool m_IsSpeedRatioEnabled = true;
+        private bool m_IsPitchRatioEnabled = true;
         private Visibility m_ClosedCaptionsVisibility = Visibility.Visible;
         private Visibility m_AudioControlVisibility = Visibility.Visible;
         private Visibility m_PauseButtonVisibility = Visibility.Visible;
@@ -102,6 +103,15 @@
         {
             get => m_IsSpeedRatioEnabled;
             set => SetProperty(ref m_IsSpeedRatioEnabled, value);
+        }
+
+        /// <summary>
+        /// Gets or sets a value indicating whether this instance is pitch ratio enabled.
+        /// </summary>
+        public bool IsPitchRatioEnabled
+        {
+            get => m_IsPitchRatioEnabled;
+            set => SetProperty(ref m_IsPitchRatioEnabled, value);
         }
 
         /// <summary>
