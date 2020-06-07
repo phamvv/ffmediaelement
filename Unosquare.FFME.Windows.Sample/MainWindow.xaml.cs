@@ -1,10 +1,11 @@
 ﻿namespace Unosquare.FFME.Windows.Sample
 {
     using ClosedCaptions;
-    using Platform;
-    using Shared;
+    using Common;
+    using Foundation;
     using System;
     using System.Linq;
+    using System.Threading.Tasks;
     using System.Windows;
     using System.Windows.Controls;
     using System.Windows.Input;
@@ -12,19 +13,25 @@
     using System.Windows.Media.Animation;
     using System.Windows.Threading;
     using ViewModels;
+    using ImageFormat = System.Drawing.Imaging.ImageFormat;
 
     /// <summary>
-    /// Interaction logic for MainWindow.xaml
+    /// Interaction logic for MainWindow.xaml.
     /// </summary>
-    public partial class MainWindow
+    public partial class MainWindow : Window
     {
         #region Fields
 
         private static readonly Key[] TogglePlayPauseKeys = { Key.Play, Key.MediaPlayPause, Key.Space };
+        private readonly object ScreenshotSyncLock = new object();
+        private readonly object RecorderSyncLock = new object();
+        private TransportStreamRecorder StreamRecorder;
         private DateTime LastMouseMoveTime;
         private Point LastMousePosition;
         private DispatcherTimer MouseMoveTimer;
         private MediaType StreamCycleMediaType = MediaType.None;
+        private bool m_IsCaptureInProgress;
+        private bool IsControllerHideCompleted;
 
         #endregion
 
@@ -35,9 +42,12 @@
         /// </summary>
         public MainWindow()
         {
+            // Set the ViewModel from the application resource
+            ViewModel = App.ViewModel;
+
             // During runtime, let's hide the window. The loaded event handler will
             // compute the final placement of our window.
-            if (GuiContext.Current.IsInDesignTime == false)
+            if (!App.IsInDesignMode)
             {
                 Left = int.MinValue;
                 Top = int.MinValue;
@@ -56,9 +66,22 @@
         #region Properties
 
         /// <summary>
-        /// A proxy, strongly-typed property to the underlying DataContext
+        /// A proxy, strongly-typed property to the underlying DataContext.
         /// </summary>
-        public RootViewModel ViewModel => DataContext as RootViewModel;
+        public RootViewModel ViewModel { get; }
+
+        /// <summary>
+        /// A flag indicating whether screenshot capture progress is currently active.
+        /// </summary>
+        private bool IsCaptureInProgress
+        {
+            get { lock (ScreenshotSyncLock) return m_IsCaptureInProgress; }
+            set { lock (ScreenshotSyncLock) m_IsCaptureInProgress = value; }
+        }
+
+        private Storyboard HideControllerAnimation => FindResource("HideControlOpacity") as Storyboard;
+
+        private Storyboard ShowControllerAnimation => FindResource("ShowControlOpacity") as Storyboard;
 
         #endregion
 
@@ -73,9 +96,49 @@
             PreviewKeyDown += OnWindowKeyDown;
             MouseWheel += OnMouseWheelChange;
 
+            #region Notification MEssages
+
+            var notificationsStoryboard = FindResource("ShowNotification") as Storyboard;
+            ViewModel.PropertyChanged += (s, e) =>
+            {
+                if (e.PropertyName != nameof(ViewModel.NotificationMessage))
+                    return;
+
+                Dispatcher.InvokeAsync(() =>
+                {
+                    if (string.IsNullOrWhiteSpace(ViewModel.NotificationMessage))
+                    {
+                        NotificationsGrid.Opacity = 0;
+                        return;
+                    }
+
+                    Storyboard.SetTarget(notificationsStoryboard, NotificationsGrid);
+                    notificationsStoryboard.Begin();
+                });
+            };
+
+            #endregion
+
             #region Mouse Move Detection for Hiding the Controller Panel
 
             LastMouseMoveTime = DateTime.UtcNow;
+
+            Loaded += (s, e) =>
+            {
+                Storyboard.SetTarget(HideControllerAnimation, ControllerPanel);
+                Storyboard.SetTarget(ShowControllerAnimation, ControllerPanel);
+
+                HideControllerAnimation.Completed += (es, ee) =>
+                {
+                    ControllerPanel.Visibility = Visibility.Hidden;
+                    IsControllerHideCompleted = true;
+                };
+
+                ShowControllerAnimation.Completed += (es, ee) =>
+                {
+                    IsControllerHideCompleted = false;
+                };
+            };
 
             MouseMove += (s, e) =>
             {
@@ -89,7 +152,7 @@
 
             MouseLeave += (s, e) =>
             {
-                LastMouseMoveTime = DateTime.UtcNow.Subtract(TimeSpan.FromSeconds(5));
+                LastMouseMoveTime = DateTime.UtcNow.Subtract(TimeSpan.FromSeconds(10));
             };
 
             MouseMoveTimer = new DispatcherTimer(DispatcherPriority.Background)
@@ -104,27 +167,16 @@
                 if (elapsedSinceMouseMove.TotalMilliseconds >= 3000 && Media.IsOpen && ControllerPanel.IsMouseOver == false
                     && PropertiesPanel.Visibility != Visibility.Visible && ControllerPanel.SoundMenuPopup.IsOpen == false)
                 {
-                    if (Math.Abs(ControllerPanel.Opacity) <= double.Epsilon) return;
+                    if (IsControllerHideCompleted) return;
                     Cursor = Cursors.None;
-
-                    // ReSharper disable once InvertIf
-                    if (FindResource("HideControlOpacity") is Storyboard sb)
-                    {
-                        Storyboard.SetTarget(sb, ControllerPanel);
-                        sb.Begin();
-                    }
+                    HideControllerAnimation?.Begin();
+                    IsControllerHideCompleted = false;
                 }
                 else
                 {
-                    if (Math.Abs(ControllerPanel.Opacity - 1d) <= double.Epsilon) return;
                     Cursor = Cursors.Arrow;
-
-                    // ReSharper disable once InvertIf
-                    if (FindResource("ShowControlOpacity") is Storyboard sb)
-                    {
-                        Storyboard.SetTarget(sb, ControllerPanel);
-                        sb.Begin();
-                    }
+                    ControllerPanel.Visibility = Visibility.Visible;
+                    ShowControllerAnimation?.Begin();
                 }
             };
 
@@ -146,15 +198,19 @@
             Media.MediaInitializing += OnMediaInitializing;
             Media.MediaOpening += OnMediaOpening;
             Media.MediaOpened += OnMediaOpened;
+            Media.MediaReady += OnMediaReady;
+            Media.MediaClosed += OnMediaClosed;
             Media.MediaChanging += OnMediaChanging;
             Media.AudioDeviceStopped += OnAudioDeviceStopped;
             Media.MediaChanged += OnMediaChanged;
             Media.PositionChanged += OnMediaPositionChanged;
             Media.MediaFailed += OnMediaFailed;
             Media.MessageLogged += OnMediaMessageLogged;
+            Media.MediaStateChanged += OnMediaStateChanged;
+            Media.DataFrameReceived += OnDataFrameReceived;
 
             // Complex examples of Media Rendering Events
-          //  BindMediaRenderingEvents();
+            BindMediaRenderingEvents();
         }
 
         #endregion
@@ -175,13 +231,13 @@
             if (Content is UIElement contentElement &&
                 VisualTreeHelper.GetParent(contentElement) is ContentPresenter presenter)
             {
-                MinWidth = ActualWidth / 2;
-                MinHeight = ActualHeight / 2;
                 presenter.MinWidth = MinWidth;
-                presenter.MinHeight = MinHeight;              
-                Width = ActualWidth;
-                Height = ActualHeight;
-                SizeToContent = SizeToContent.Manual;   
+                presenter.MinHeight = MinHeight;
+
+                SizeToContent = SizeToContent.WidthAndHeight;
+                MinWidth = ActualWidth;
+                MinHeight = ActualHeight;
+                SizeToContent = SizeToContent.Manual;
             }
 
             // Place on secondary screen by default if there is one
@@ -205,7 +261,7 @@
             var args = Environment.GetCommandLineArgs();
             if (args.Length > 1)
             {
-                App.Current.Commands.OpenCommand.Execute(args[1].Trim());
+                App.ViewModel.Commands.OpenCommand.Execute(args[1].Trim());
             }
         }
 
@@ -235,46 +291,44 @@
             // Pause
             if (TogglePlayPauseKeys.Contains(e.Key) && Media.IsPlaying)
             {
-                await App.Current.Commands.PauseCommand.ExecuteAsync();
+                await App.ViewModel.Commands.PauseCommand.ExecuteAsync();
                 return;
             }
 
             // Play
             if (TogglePlayPauseKeys.Contains(e.Key) && Media.IsPlaying == false)
             {
-                await App.Current.Commands.PlayCommand.ExecuteAsync();
+                await App.ViewModel.Commands.PlayCommand.ExecuteAsync();
                 return;
             }
 
             // Seek to left
             if (e.Key == Key.Left)
             {
-                if (Media.IsPlaying)
-                    Media.SpeedRatio -= 0.05;
-
+                await Media.StepBackward();
                 return;
             }
 
             // Seek to right
             if (e.Key == Key.Right)
             {
-                if (Media.IsPlaying)
-                    Media.SpeedRatio += 0.05;
-
+                await Media.StepForward();
                 return;
             }
 
             // Volume Up
             if (e.Key == Key.Add || e.Key == Key.VolumeUp)
             {
-                Media.Volume += 0.05;
+                Media.Volume += Media.Volume >= 1 ? 0 : 0.05;
+                ViewModel.NotificationMessage = $"Volume: {Media.Volume:p0}";
                 return;
             }
 
             // Volume Down
             if (e.Key == Key.Subtract || e.Key == Key.VolumeDown)
             {
-                Media.Volume -= 0.05;
+                Media.Volume -= Media.Volume <= 0 ? 0 : 0.05;
+                ViewModel.NotificationMessage = $"Volume: {Media.Volume:p0}";
                 return;
             }
 
@@ -282,22 +336,21 @@
             if (e.Key == Key.M || e.Key == Key.VolumeMute)
             {
                 Media.IsMuted = !Media.IsMuted;
+                ViewModel.NotificationMessage = Media.IsMuted ? "Muted." : "Unmuted.";
                 return;
             }
 
             // Increase speed
             if (e.Key == Key.Up)
             {
-                // Media.SpeedRatio += 0.05;
-                Media.Pitch += 0.05;
+                Media.SpeedRatio += 0.05;
                 return;
             }
 
             // Decrease speed
             if (e.Key == Key.Down)
             {
-                // Media.SpeedRatio -= 0.05;   
-                Media.Pitch -= 0.05;
+                Media.SpeedRatio -= 0.05;
                 return;
             }
 
@@ -331,6 +384,7 @@
                 var currentCaptions = (int)Media.ClosedCaptionsChannel;
                 var nextCaptions = currentCaptions >= (int)CaptionsChannel.CC4 ? CaptionsChannel.CCP : (CaptionsChannel)(currentCaptions + 1);
                 Media.ClosedCaptionsChannel = nextCaptions;
+                ViewModel.NotificationMessage = $"Closed-Captions: {nextCaptions}";
                 return;
             }
 
@@ -338,36 +392,156 @@
             if (e.Key == Key.R)
             {
                 Media.SpeedRatio = 1.0;
-                Media.Pitch = 1;
                 Media.Volume = 1.0;
                 Media.Balance = 0;
                 Media.IsMuted = false;
+                ViewModel.Controller.VideoContrast = 1;
+                ViewModel.Controller.VideoBrightness = 0;
+                ViewModel.Controller.VideoSaturation = 1;
                 ViewModel.Controller.MediaElementZoom = 1.0;
+                ViewModel.NotificationMessage = "Defaults applied.";
                 return;
             }
 
-            //change audio stream
-            if(e.Key == Key.F5)
+            // Contrast Controls
+            if (e.Key == Key.Y)
             {
-                if (ChangeAudioStream.AudioTrackCount > 1)
-                {
-                    if (ChangeAudioStream.audioTrack == 2)
-                        ChangeAudioStream.audioTrack = 1;
-                    else
-                        ChangeAudioStream.audioTrack = 2;
+                ViewModel.Controller.VideoContrast += 0.05;
+                return;
+            }
 
-                    StreamCycleMediaType = MediaType.Audio;
-                    await Media.ChangeMedia();
-                    return;
+            if (e.Key == Key.H)
+            {
+                ViewModel.Controller.VideoContrast -= 0.05;
+                return;
+            }
+
+            // Brightness Controls
+            if (e.Key == Key.U)
+            {
+                ViewModel.Controller.VideoBrightness += 0.05;
+                return;
+            }
+
+            if (e.Key == Key.J)
+            {
+                ViewModel.Controller.VideoBrightness -= 0.05;
+                return;
+            }
+
+            // Saturation Controls
+            if (e.Key == Key.I)
+            {
+                ViewModel.Controller.VideoSaturation += 0.05;
+                return;
+            }
+
+            if (e.Key == Key.K)
+            {
+                ViewModel.Controller.VideoSaturation -= 0.05;
+                return;
+            }
+
+            // Example of cycling through audio filters
+            if (e.Key == Key.E)
+            {
+                var mediaOptions = ViewModel.CurrentMediaOptions;
+                if (mediaOptions == null) return;
+
+                if (string.IsNullOrWhiteSpace(mediaOptions.AudioFilter))
+                {
+                    mediaOptions.AudioFilter = "aecho=0.8:0.9:1000:0.3";
+                    ViewModel.NotificationMessage = "Applied echo audio filter.";
+                }
+                else if (mediaOptions.AudioFilter == "aecho=0.8:0.9:1000:0.3")
+                {
+                    mediaOptions.AudioFilter = "chorus=0.5:0.9:50|60|40:0.4|0.32|0.3:0.25|0.4|0.3:2|2.3|1.3";
+                    ViewModel.NotificationMessage = "Applied chorus audio filter.";
                 }
                 else
-                    MessageBox.Show("1 Audio Track only");
+                {
+                    mediaOptions.AudioFilter = string.Empty;
+                    ViewModel.NotificationMessage = "Cleared audio filter.";
+                }
+
+                return;
+            }
+
+            // Capture Screenshot to desktop
+            if (e.Key == Key.T)
+            {
+                // Don't run the capture operation as it is in progress
+                // GDI requires exclusive access to files when writing
+                // so we do this one at a time
+                if (IsCaptureInProgress)
+                    return;
+
+                // Immediately set the progress to true.
+                IsCaptureInProgress = true;
+
+                // Send the capture to the background so we don't have frames skipping
+                // on the UI. This prvents frame jittering.
+                var captureTask = Task.Run(() =>
+                {
+                    try
+                    {
+                        // Obtain the bitmap
+                        var bmp = Media.CaptureBitmapAsync().GetAwaiter().GetResult();
+
+                        // prevent firther processing if we did not get a bitmap.
+                        bmp?.Save(App.GetCaptureFilePath("Screenshot", "png"), ImageFormat.Png);
+                        ViewModel.NotificationMessage = "Captured screenshot.";
+                    }
+                    catch (Exception ex)
+                    {
+                        var messageTask = Dispatcher.InvokeAsync(() =>
+                        {
+                            MessageBox.Show(
+                                this,
+                                $"Capturing Video Frame Failed: {ex.GetType()}\r\n{ex.Message}",
+                                $"{nameof(MediaElement)} Error",
+                                MessageBoxButton.OK,
+                                MessageBoxImage.Error,
+                                MessageBoxResult.OK);
+                        });
+                    }
+                    finally
+                    {
+                        // unlock for further captures.
+                        IsCaptureInProgress = false;
+                    }
+                });
+
+                return;
+            }
+
+            if (e.Key == Key.W)
+            {
+                // An example of recording packets (no transcoding) into a transport stream.
+                lock (RecorderSyncLock)
+                {
+                    if (StreamRecorder == null && Media.IsOpen)
+                    {
+                        StreamRecorder = new TransportStreamRecorder(App.GetCaptureFilePath("Capture", "ts"), Media);
+                        ViewModel.NotificationMessage = "Stream recording initiated.";
+                    }
+                    else
+                    {
+                        if (StreamRecorder != null)
+                            ViewModel.NotificationMessage = "Stream recording completed.";
+
+                        StreamRecorder?.Close();
+                        StreamRecorder = null;
+                    }
+                }
+
+                return;
             }
 
             // Exit fullscreen
             if (e.Key == Key.Escape && WindowStyle == WindowStyle.None)
             {
-                await App.Current.Commands.ToggleFullscreenCommand.ExecuteAsync();
+                await App.ViewModel.Commands.ToggleFullscreenCommand.ExecuteAsync();
             }
         }
 
@@ -382,7 +556,7 @@
                 return;
 
             e.Handled = true;
-            await App.Current.Commands.ToggleFullscreenCommand.ExecuteAsync();
+            await App.ViewModel.Commands.ToggleFullscreenCommand.ExecuteAsync();
         }
 
         /// <summary>
@@ -392,11 +566,11 @@
         /// <param name="e">The <see cref="MouseWheelEventArgs"/> instance containing the event data.</param>
         private void OnMouseWheelChange(object sender, MouseWheelEventArgs e)
         {
-            //if (Media.IsOpen == false || Media.IsOpening || Media.IsChanging)
-            //    return;
+            if (Media.IsOpen == false || Media.IsOpening || Media.IsChanging)
+                return;
 
-            //var delta = (e.Delta / 2000d).ToMultipleOf(0.05d);
-            //ViewModel.Controller.MediaElementZoom = Math.Round(App.Current.ViewModel.Controller.MediaElementZoom + delta, 2);
+            var delta = (e.Delta / 2000d).ToMultipleOf(0.05d);
+            ViewModel.Controller.MediaElementZoom = Math.Round(App.ViewModel.Controller.MediaElementZoom + delta, 2);
         }
 
         #endregion

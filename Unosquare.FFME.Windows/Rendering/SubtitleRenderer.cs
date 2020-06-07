@@ -1,18 +1,19 @@
 ﻿namespace Unosquare.FFME.Rendering
 {
+    using Container;
+    using Diagnostics;
+    using Engine;
     using Platform;
-    using Shared;
     using System;
-    using System.Windows.Threading;
 
     /// <summary>
     /// Subtitle Renderer - Does nothing at this point.
     /// </summary>
     /// <seealso cref="IMediaRenderer" />
-    internal class SubtitleRenderer : IMediaRenderer
+    internal class SubtitleRenderer : IMediaRenderer, ILoggingSource
     {
         /// <summary>
-        /// The synchronize lock
+        /// The synchronize lock.
         /// </summary>
         private readonly object SyncLock = new object();
         private TimeSpan? StartTime;
@@ -37,6 +38,9 @@
             MediaCore = mediaCore;
         }
 
+        /// <inheritdoc />
+        ILoggingHandler ILoggingSource.LoggingHandler => MediaCore;
+
         /// <summary>
         /// Gets the parent media element (platform specific).
         /// </summary>
@@ -46,34 +50,34 @@
         public MediaEngine MediaCore { get; }
 
         /// <inheritdoc />
-        public void Close()
+        public void OnClose()
         {
             SetText(string.Empty);
         }
 
         /// <inheritdoc />
-        public void Pause()
+        public void OnPause()
         {
             // Placeholder
         }
 
         /// <inheritdoc />
-        public void Play()
+        public void OnPlay()
         {
             // placeholder
         }
 
         /// <inheritdoc />
-        public void Stop() => WaitForReadyState();
+        public void OnStop() => OnStarting();
 
         /// <inheritdoc />
-        public void Seek()
+        public void OnSeek()
         {
             // placeholder
         }
 
         /// <inheritdoc />
-        public void WaitForReadyState()
+        public void OnStarting()
         {
             lock (SyncLock)
             {
@@ -152,12 +156,12 @@
         {
             lock (SyncLock)
             {
-                if (RenderedText.Equals(text))
+                if (RenderedText == text)
                     return;
             }
 
             // We fire-and-forget the update of the text
-            GuiContext.Current.EnqueueInvoke(DispatcherPriority.Render, () =>
+            Library.GuiContext.EnqueueInvoke(() =>
             {
                 lock (SyncLock)
                 {

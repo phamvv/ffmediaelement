@@ -6,109 +6,94 @@
 
     /// <summary>
     /// A very simple set of extensions to more easily handle UI state changes based on
-    /// notification properties
+    /// notification properties. The main idea is to bind to the PropertyChanged event
+    /// for a publisher only one and add a set of callbacks with matching property names
+    /// when the publisher raises the event.
     /// </summary>
     internal static class ReactiveExtensions
     {
         /// <summary>
-        /// Contains a list of subscriptions Subscriptions[Publisher][PropertyName].List of subscriber-action pairs
+        /// Contains a list of subscriptions Subscriptions[Publisher][PropertyName].List of subscriber-action pairs.
         /// </summary>
         private static readonly Dictionary<INotifyPropertyChanged, SubscriptionSet> Subscriptions
             = new Dictionary<INotifyPropertyChanged, SubscriptionSet>();
 
         private static readonly object SyncLock = new object();
 
-        // The pinned actions (action that don't get remove if the weak reference is lost.
-        // ReSharper disable once CollectionNeverQueried.Local
-        private static readonly Dictionary<Action, bool> PinnedActions = new Dictionary<Action, bool>();
-
         /// <summary>
         /// Specifies a callback when properties change.
         /// </summary>
-        /// <param name="callback">The callback.</param>
         /// <param name="publisher">The publisher.</param>
+        /// <param name="callback">The callback.</param>
         /// <param name="propertyNames">The property names.</param>
-        internal static void WhenChanged(this Action callback, INotifyPropertyChanged publisher, params string[] propertyNames)
+        public static void WhenChanged(this INotifyPropertyChanged publisher, Action callback, params string[] propertyNames)
         {
             var bindPropertyChanged = false;
 
             lock (SyncLock)
             {
+                // Create the subscription set for the publisher if it does not exist.
                 if (Subscriptions.ContainsKey(publisher) == false)
                 {
                     Subscriptions[publisher] = new SubscriptionSet();
+
+                    // if it did not exist before, we need to bind to the
+                    // PropertyChanged event of the publisher.
                     bindPropertyChanged = true;
                 }
 
-                // Save the Action reference so that the weak reference is not lost
-                PinnedActions[callback] = true;
-
                 foreach (var propertyName in propertyNames)
                 {
+                    // Create the set of callback references for the publisher's property if it does not exist.
                     if (Subscriptions[publisher].ContainsKey(propertyName) == false)
-                        Subscriptions[publisher][propertyName] = new CallbackReferenceSet();
+                        Subscriptions[publisher][propertyName] = new CallbackList();
 
-                    Subscriptions[publisher][propertyName].Add(new CallbackReference(callback));
+                    // Add the callback for the publisher's property changed
+                    Subscriptions[publisher][propertyName].Add(callback);
                 }
             }
 
-            if (bindPropertyChanged == false) return;
+            // Make an initial call
+            callback();
+
+            // No need to bind to the PropertyChanged event if we are already bound to it.
+            if (bindPropertyChanged == false)
+                return;
 
             // Finally, bind to property changed
             publisher.PropertyChanged += (s, e) =>
             {
-                var deadCallbacks = new CallbackReferenceSet();
-                var aliveCallbacks = new CallbackReferenceSet();
+                CallbackList propertyCallbacks = null;
 
                 lock (SyncLock)
                 {
+                    // we don't need to perform any action if there are no subscriptions to
+                    // this property name.
                     if (Subscriptions[publisher].ContainsKey(e.PropertyName) == false)
                         return;
 
-                    aliveCallbacks.AddRange(Subscriptions[publisher][e.PropertyName]);
+                    // Get the list of alive subscriptions for this property name
+                    propertyCallbacks = Subscriptions[publisher][e.PropertyName];
                 }
 
-                foreach (var aliveSubscription in aliveCallbacks)
+                // Call the subscription's callbacks
+                foreach (var propertyCallback in propertyCallbacks)
                 {
-                    if (aliveSubscription.IsAlive == false)
-                    {
-                        deadCallbacks.Add(aliveSubscription);
-                        continue;
-                    }
-
-                    aliveSubscription.Target?.Invoke();
-                }
-
-                if (deadCallbacks.Count == 0) return;
-
-                lock (SyncLock)
-                {
-                    foreach (var deadSubscriber in deadCallbacks)
-                        Subscriptions[publisher][e.PropertyName].Remove(deadSubscriber);
+                    // if the subscription is alive, invoke the matching action
+                    propertyCallback.Invoke();
                 }
             };
         }
 
-        internal sealed class SubscriptionSet : Dictionary<string, CallbackReferenceSet> { }
+        internal sealed class SubscriptionSet : Dictionary<string, CallbackList> { }
 
-        internal sealed class CallbackReferenceSet : List<CallbackReference>
+        internal sealed class CallbackList : List<Action>
         {
-            public CallbackReferenceSet()
+            public CallbackList()
                 : base(32)
             {
                 // placeholder
             }
-        }
-
-        internal sealed class CallbackReference : WeakReference
-        {
-            public CallbackReference(Action action)
-                : base(action, false)
-            {
-                // placeholder
-            }
-
-            public new Action Target => IsAlive ? base.Target as Action : null;
         }
     }
 }

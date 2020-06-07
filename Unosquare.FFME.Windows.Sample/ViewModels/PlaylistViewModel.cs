@@ -1,16 +1,14 @@
 ﻿namespace Unosquare.FFME.Windows.Sample.ViewModels
 {
-    using Events;
+    using Common;
     using Foundation;
-    using Platform;
     using System;
     using System.ComponentModel;
     using System.IO;
-    using System.Windows;
     using System.Windows.Data;
 
     /// <summary>
-    /// Represents the Playlist
+    /// Represents the Playlist.
     /// </summary>
     /// <seealso cref="AttachedViewModel" />
     public sealed class PlaylistViewModel : AttachedViewModel
@@ -27,9 +25,9 @@
         private string FilterString = string.Empty;
 
         // Property Backing
-        private bool m_IsInOpenMode = GuiContext.Current.IsInDesignTime;
+        private bool m_IsInOpenMode = App.IsInDesignMode;
         private bool m_IsPlaylistEnabled = true;
-        private string m_OpenTargetUrl = string.Empty;
+        private string m_OpenMediaSource = string.Empty;
         private string m_PlaylistSearchString = string.Empty;
 
         #endregion
@@ -46,19 +44,29 @@
             if (Directory.Exists(ThumbsDirectory) == false)
                 Directory.CreateDirectory(ThumbsDirectory);
 
+            // Set and create a index directory
+            IndexDirectory = Path.Combine(root.AppDataDirectory, "SeekIndexes");
+            if (Directory.Exists(IndexDirectory) == false)
+                Directory.CreateDirectory(IndexDirectory);
+
             PlaylistFilePath = Path.Combine(root.AppDataDirectory, "ffme.m3u8");
-        //    MessageBox.Show(PlaylistFilePath, "luu");
-            Entries = new CustomPlaylist(this);
+
+            Entries = new CustomPlaylistEntryCollection(this);
             EntriesView = CollectionViewSource.GetDefaultView(Entries);
             EntriesView.Filter = item =>
             {
-                if (string.IsNullOrWhiteSpace(PlaylistSearchString) || PlaylistSearchString.Trim().Length < MinimumSearchLength)
+                var searchString = PlaylistSearchString;
+
+                if (string.IsNullOrWhiteSpace(searchString) || searchString.Trim().Length < MinimumSearchLength)
                     return true;
 
                 if (item is CustomPlaylistEntry entry)
                 {
-                    return (entry.Title?.ToLowerInvariant().Contains(PlaylistSearchString) ?? false) ||
-                           (entry.MediaUrl?.ToLowerInvariant().Contains(PlaylistSearchString) ?? false);
+                    var title = entry.Title ?? string.Empty;
+                    var source = entry.MediaSource ?? string.Empty;
+
+                    return title.IndexOf(searchString, StringComparison.InvariantCultureIgnoreCase) >= 0 ||
+                        source.IndexOf(searchString, StringComparison.InvariantCultureIgnoreCase) >= 0;
                 }
 
                 return false;
@@ -68,9 +76,9 @@
         }
 
         /// <summary>
-        /// Gets the custom playlist. Do not use for data-binding
+        /// Gets the custom playlist. Do not use for data-binding.
         /// </summary>
-        public CustomPlaylist Entries { get; }
+        public CustomPlaylistEntryCollection Entries { get; }
 
         /// <summary>
         /// Gets the custom playlist entries as a view that can be used in data binding scenarios.
@@ -81,6 +89,11 @@
         /// Gets the full path where thumbnails are stored.
         /// </summary>
         public string ThumbsDirectory { get; }
+
+        /// <summary>
+        /// Gets the seek index base directory.
+        /// </summary>
+        public string IndexDirectory { get; }
 
         /// <summary>
         /// Gets the playlist file path.
@@ -109,7 +122,7 @@
                         if (futureSearch.Length < MinimumSearchLength && currentSearch.Length < MinimumSearchLength) return;
 
                         EntriesView.Refresh();
-                        FilterString = string.Copy(m_PlaylistSearchString);
+                        FilterString = new string(m_PlaylistSearchString.ToCharArray());
                     });
                 }
 
@@ -138,38 +151,34 @@
         /// <summary>
         /// Gets or sets the open model URL.
         /// </summary>
-        public string OpenTargetUrl
+        public string OpenMediaSource
         {
-            get => m_OpenTargetUrl;
-            set => SetProperty(ref m_OpenTargetUrl, value);
+            get => m_OpenMediaSource;
+            set => SetProperty(ref m_OpenMediaSource, value);
         }
 
         /// <inheritdoc />
         internal override void OnApplicationLoaded()
         {
             base.OnApplicationLoaded();
-            var m = Root.App.MediaElement;
+            var m = App.ViewModel.MediaElement;
 
-            new Action(() =>
-            {
-                IsPlaylistEnabled = m.IsOpening == false;
-            }).WhenChanged(m, nameof(m.IsOpening));
-
+            m.WhenChanged(() => IsPlaylistEnabled = m.IsOpening == false, nameof(m.IsOpening));
             m.MediaOpened += OnMediaOpened;
             m.RenderingVideo += OnRenderingVideo;
         }
 
         /// <summary>
-        /// Called when Media is opened
+        /// Called when Media is opened.
         /// </summary>
         /// <param name="sender">The sender.</param>
-        /// <param name="e">The <see cref="RoutedEventArgs"/> instance containing the event data.</param>
-        private void OnMediaOpened(object sender, RoutedEventArgs e)
+        /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
+        private void OnMediaOpened(object sender, EventArgs e)
         {
             HasTakenThumbnail = false;
-            Entries.AddOrUpdateEntry(
-                Root.App.MediaElement.Source?.ToString() ?? Root.App.MediaElement.MediaInfo.InputUrl,
-                Root.App.MediaElement.MediaInfo);
+            var m = App.ViewModel.MediaElement;
+
+            Entries.AddOrUpdateEntry(m.Source, m.MediaInfo);
             Entries.SaveEntries();
         }
 
@@ -182,20 +191,19 @@
         {
             const double snapshotPosition = 3;
 
-            var state = e.EngineState;
-            if (HasTakenThumbnail || state.Source == null)
-                return;
+            if (HasTakenThumbnail) return;
 
-            var sourceUrl = state.Source.ToString();
-            if (string.IsNullOrWhiteSpace(sourceUrl))
+            var state = e.EngineState;
+
+            if (state.Source == null)
                 return;
 
             if (!state.HasMediaEnded && state.Position.TotalSeconds < snapshotPosition &&
-                (!state.NaturalDuration.HasValue || state.NaturalDuration.Value.TotalSeconds > snapshotPosition))
+                (!state.PlaybackEndTime.HasValue || state.PlaybackEndTime.Value.TotalSeconds > snapshotPosition))
                 return;
 
             HasTakenThumbnail = true;
-            Entries.AddOrUpdateEntryThumbnail(sourceUrl, e.Bitmap);
+            Entries.AddOrUpdateEntryThumbnail(state.Source, e.Bitmap);
             Entries.SaveEntries();
         }
     }

@@ -1,7 +1,7 @@
 ﻿namespace Unosquare.FFME.Windows.Sample.Foundation
 {
+    using Common;
     using FFmpeg.AutoGen;
-    using Shared;
     using System;
     using System.IO;
     using System.Runtime.InteropServices;
@@ -26,13 +26,13 @@
             var fullPath = Path.GetFullPath(path);
             BackingStream = File.OpenRead(fullPath);
             var uri = new Uri(fullPath);
-            StreamUri = new Uri(uri.ToString().Replace("file://", Scheme));
+            StreamUri = new Uri(uri.ToString().ReplaceOrdinal("file://", Scheme));
             CanSeek = true;
             ReadBuffer = new byte[ReadBufferLength];
         }
 
         /// <summary>
-        /// The custom file scheme (URL prefix) including ://
+        /// The custom file scheme (URL prefix) including the :// sequence.
         /// </summary>
         public static string Scheme => "customfile://";
 
@@ -44,6 +44,12 @@
 
         /// <inheritdoc />
         public int ReadBufferLength => 1024 * 16;
+
+        /// <inheritdoc />
+        public InputStreamInitializing OnInitializing { get; }
+
+        /// <inheritdoc />
+        public InputStreamInitialized OnInitialized { get; }
 
         /// <inheritdoc />
         public void Dispose()
@@ -59,7 +65,7 @@
         /// <param name="targetBuffer">The target buffer.</param>
         /// <param name="targetBufferLength">Length of the target buffer.</param>
         /// <returns>
-        /// The number of bytes that have been read
+        /// The number of bytes that have been read.
         /// </returns>
         public int Read(void* opaque, byte* targetBuffer, int targetBufferLength)
         {

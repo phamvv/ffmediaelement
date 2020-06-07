@@ -3,20 +3,27 @@
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006" 
              xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
+             xmlns:vm="clr-namespace:Unosquare.FFME.Windows.Sample.ViewModels"
              xmlns:ffme="clr-namespace:Unosquare.FFME;assembly=ffme.win"
              mc:Ignorable="d" d:DesignHeight="700"
-             d:DataContext="{StaticResource ViewModel}">
-    <!-- ReSharper disable once Xaml.BindingWithContextNotResolved -->
-    <Border Name="PropertyExplorerPanel" Width="280" Style="{StaticResource SidePanelContainerBorderStyle}" 
-            d:DataContext="{d:DesignInstance ffme:MediaElement, IsDesignTimeCreatable=True}"
-            DataContext="{Binding Path=App.MediaElement}" Margin="0,16,20,0">
+             d:DataContext="{d:DesignInstance vm:RootViewModel, IsDesignTimeCreatable=True}">
+    <Border Name="PropertyExplorerPanel" Width="280" Style="{StaticResource SidePanelContainerBorderStyle}">
         <DockPanel LastChildFill="True">
             <!-- The Content -->
-            <Grid x:Name="PropertyExplorerPanelContent">
+            <Grid x:Name="PropertyExplorerPanelContent"
+                  DataContext="{Binding MediaElement}"
+                  d:DataContext="{d:DesignInstance ffme:MediaElement, IsDesignTimeCreatable=True}">
                 <ScrollViewer VerticalScrollBarVisibility="Auto" HorizontalScrollBarVisibility="Hidden"
                             Height="{Binding Path=ActualHeight, RelativeSource={RelativeSource Mode=FindAncestor, AncestorType=UIElement}}">
                     <ItemsControl>
                         <ItemsControl.Resources>
+                            <LinearGradientBrush x:Key="KeyHeader" StartPoint="0,0" EndPoint="0,1">
+                                <GradientStopCollection>
+                                    <GradientStop Offset="0.0" Color="#ffffffff" />
+                                    <GradientStop Offset="0.03" Color="#bb0c0c0b" />
+                                    <GradientStop Offset="1.0" Color="#880c0c0b" />
+                                </GradientStopCollection>
+                            </LinearGradientBrush>
                             <Style TargetType="TextBlock" x:Key="Key">
                                 <Setter Property="DockPanel.Dock" Value="Left" />
                                 <Setter Property="HorizontalAlignment" Value="Stretch" />
@@ -43,7 +50,7 @@
                             </Style>
                         </ItemsControl.Resources>
 
-                        <DockPanel Background="#ee444444">
+                        <DockPanel Background="{StaticResource KeyHeader}">
                             <TextBlock Style="{StaticResource Key}">Media Format</TextBlock>
                             <TextBlock Style="{StaticResource Value}" Text="{Binding MediaFormat, Mode=OneWay}" />
                         </DockPanel>
@@ -60,7 +67,17 @@
 
                         <DockPanel>
                             <TextBlock Style="{StaticResource Key}">Duration</TextBlock>
-                            <TextBlock Style="{StaticResource Value}" Text="{Binding NaturalDuration, Mode=OneWay}" />
+                            <TextBlock Style="{StaticResource Value}" Text="{Binding NaturalDuration, Mode=OneWay, Converter={StaticResource TimeSpanFormatter}}" />
+                        </DockPanel>
+
+                        <DockPanel>
+                            <TextBlock Style="{StaticResource Key}">Start Time</TextBlock>
+                            <TextBlock Style="{StaticResource Value}" Text="{Binding PlaybackStartTime, Mode=OneWay, Converter={StaticResource TimeSpanFormatter}}" />
+                        </DockPanel>
+
+                        <DockPanel>
+                            <TextBlock Style="{StaticResource Key}">End Time</TextBlock>
+                            <TextBlock Style="{StaticResource Value}" Text="{Binding PlaybackEndTime, Mode=OneWay, Converter={StaticResource TimeSpanFormatter}}" />
                         </DockPanel>
 
                         <DockPanel>
@@ -83,14 +100,19 @@
                             <TextBlock Style="{StaticResource Value}" Text="{Binding CanPause, Mode=OneWay}" />
                         </DockPanel>
 
-                        <DockPanel Background="#ee444444">
+                        <DockPanel Background="{StaticResource KeyHeader}">
                             <TextBlock Style="{StaticResource Key}">State</TextBlock>
                             <TextBlock Style="{StaticResource Value}" Text="{Binding MediaState, Mode=OneWay}" />
                         </DockPanel>
 
                         <DockPanel>
                             <TextBlock Style="{StaticResource Key}">Position</TextBlock>
-                            <TextBlock Style="{StaticResource Value}" Text="{Binding Position, Mode=OneWay}" />
+                            <TextBlock Style="{StaticResource Value}" Text="{Binding Position, Mode=OneWay, Converter={StaticResource TimeSpanFormatter}}" />
+                        </DockPanel>
+
+                        <DockPanel>
+                            <TextBlock Style="{StaticResource Key}">Frame Position</TextBlock>
+                            <TextBlock Style="{StaticResource Value}" Text="{Binding FramePosition, Mode=OneWay, Converter={StaticResource TimeSpanFormatter}}" />
                         </DockPanel>
 
                         <DockPanel>
@@ -123,7 +145,7 @@
                             <TextBlock Style="{StaticResource Value}" Text="{Binding HasMediaEnded, Mode=OneWay}" />
                         </DockPanel>
 
-                        <DockPanel Background="#ee444444">
+                        <DockPanel Background="{StaticResource KeyHeader}">
                             <TextBlock Style="{StaticResource Key}">Is Buffering</TextBlock>
                             <TextBlock Style="{StaticResource Value}" Text="{Binding IsBuffering, Mode=OneWay}" />
                         </DockPanel>
@@ -153,7 +175,12 @@
                             <TextBlock Style="{StaticResource Value}" Text="{Binding PacketBufferLength, Mode=OneWay, Converter={StaticResource ByteFormatter}}" />
                         </DockPanel>
 
-                        <DockPanel Background="#ee444444">
+                        <DockPanel>
+                            <TextBlock Style="{StaticResource Key}">Buffered Duration</TextBlock>
+                            <TextBlock Style="{StaticResource Value}" Text="{Binding PacketBufferDuration, Mode=OneWay, Converter={StaticResource TimeSpanFormatter}}" />
+                        </DockPanel>
+
+                        <DockPanel Background="{StaticResource KeyHeader}">
                             <TextBlock Style="{StaticResource Key}">Has Video</TextBlock>
                             <TextBlock Style="{StaticResource Value}" Text="{Binding HasVideo, Mode=OneWay}" />
                         </DockPanel>
@@ -208,7 +235,7 @@
                             <TextBlock Style="{StaticResource Value}" Text="{Binding VideoAspectRatio, Mode=OneWay}" />
                         </DockPanel>
 
-                        <DockPanel Background="#ee444444">
+                        <DockPanel Background="{StaticResource KeyHeader}">
                             <TextBlock Style="{StaticResource Key}">Has Audio</TextBlock>
                             <TextBlock Style="{StaticResource Value}" Text="{Binding HasAudio, Mode=OneWay}" />
                         </DockPanel>
@@ -243,7 +270,7 @@
                             <TextBlock Style="{StaticResource Value}" Text="{Binding AudioBitsPerSample, Mode=OneWay}" />
                         </DockPanel>
 
-                        <DockPanel Background="#ee444444">
+                        <DockPanel Background="{StaticResource KeyHeader}">
                             <TextBlock Style="{StaticResource Key}">Has Subtitles</TextBlock>
                             <TextBlock Style="{StaticResource Value}" Text="{Binding HasSubtitles, Mode=OneWay}" />
                         </DockPanel>

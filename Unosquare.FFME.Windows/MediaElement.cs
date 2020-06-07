@@ -1,22 +1,25 @@
-﻿#pragma warning disable 67 // Event is never invoked
-namespace Unosquare.FFME
+﻿namespace Unosquare.FFME
 {
-    using Events;
+    using Common;
+    using Engine;
     using Platform;
     using Primitives;
     using Rendering;
-    using Shared;
     using System;
+    using System.Collections.Concurrent;
+    using System.Collections.Generic;
     using System.ComponentModel;
+    using System.IO;
+    using System.Runtime.CompilerServices;
     using System.Threading.Tasks;
     using System.Windows;
     using System.Windows.Controls;
     using System.Windows.Data;
-    using System.Windows.Interop;
     using System.Windows.Markup;
     using System.Windows.Media;
     using System.Windows.Media.Imaging;
     using System.Windows.Threading;
+    using Bitmap = System.Drawing.Bitmap;
 
     /// <summary>
     /// Represents a control that contains audio and/or video.
@@ -24,41 +27,29 @@ namespace Unosquare.FFME
     /// the FFmpeg library to perform reading and decoding of media streams.
     /// </summary>
     /// <seealso cref="UserControl" />
-    /// <seealso cref="IDisposable" />
-    /// <seealso cref="INotifyPropertyChanged" />
     /// <seealso cref="IUriContext" />
     [Localizability(LocalizationCategory.NeverLocalize)]
     [DefaultProperty(nameof(Source))]
-    public sealed partial class MediaElement : UserControl, IDisposable, INotifyPropertyChanged, IUriContext
+    public sealed partial class MediaElement : UserControl, IUriContext, IDisposable
     {
         #region Fields and Property Backing
 
         /// <summary>
-        /// The affects measure and render metadata options
+        /// The affects measure and render metadata options.
         /// </summary>
         internal const FrameworkPropertyMetadataOptions AffectsMeasureAndRender
             = FrameworkPropertyMetadataOptions.AffectsMeasure | FrameworkPropertyMetadataOptions.AffectsRender;
 
         /// <summary>
-        /// The dispose lock -- Prevents running actions while disposing.
-        /// </summary>
-        private readonly object DisposeLock = new object();
-
-        /// <summary>
-        /// Signals whether the open task was called via the open command
-        /// so that the source property changing handler does not re-run the open command.
-        /// </summary>
-        private readonly AtomicBoolean IsOpeningViaCommand = new AtomicBoolean(false);
-
-        /// <summary>
-        /// To detect redundant calls
-        /// </summary>
-        private readonly AtomicBoolean m_IsDisposed = new AtomicBoolean(false);
-
-        /// <summary>
-        /// The allow content change flag
+        /// The allow content change flag.
         /// </summary>
         private readonly bool AllowContentChange;
+
+        private readonly ConcurrentBag<string> PropertyUpdates = new ConcurrentBag<string>();
+        private readonly AtomicBoolean m_IsStateUpdating = new AtomicBoolean(false);
+        private readonly DispatcherTimer UpdatesTimer;
+
+        private bool m_IsDisposed;
 
         #endregion
 
@@ -69,6 +60,12 @@ namespace Unosquare.FFME
         /// </summary>
         static MediaElement()
         {
+            MediaEngine.FFmpegMessageLogged += (s, message) =>
+                FFmpegMessageLogged?.Invoke(typeof(MediaElement), new MediaLogMessageEventArgs(message));
+
+            // A GUI context must be registered
+            Library.RegisterGuiContext(GuiContext.Current);
+
             // Content property cannot be changed.
             ContentProperty.OverrideMetadata(typeof(MediaElement), new FrameworkPropertyMetadata(null, OnCoerceContentValue));
 
@@ -76,9 +73,6 @@ namespace Unosquare.FFME
             style.Setters.Add(new Setter(FlowDirectionProperty, FlowDirection.LeftToRight));
             style.Seal();
             StyleProperty.OverrideMetadata(typeof(MediaElement), new FrameworkPropertyMetadata(style));
-
-            // Initialize the core
-            MediaEngine.Initialize(WindowsPlatform.Instance);
         }
 
         /// <summary>
@@ -89,6 +83,39 @@ namespace Unosquare.FFME
             try
             {
                 AllowContentChange = true;
+
+                if (!Library.IsInDesignMode)
+                {
+                    // Setup the media engine and property updates timer
+                    MediaCore = new MediaEngine(this, new MediaConnector(this));
+                    MediaCore.State.PropertyChanged += (s, e) => PropertyUpdates.Add(e.PropertyName);
+
+                    // When the media element is removed from the visual tree
+                    // we want to close the current media to prevent memory leaks
+                    Unloaded += async (s, e) =>
+                    {
+                        if (UnloadedBehavior != MediaPlaybackState.Close)
+                            return;
+
+                        try
+                        {
+                            await Close();
+                        }
+                        finally
+                        {
+                            Dispose();
+                        }
+                    };
+
+                    UpdatesTimer = new DispatcherTimer(DispatcherPriority.DataBind)
+                    {
+                        Interval = TimeSpan.FromMilliseconds(15),
+                    };
+
+                    UpdatesTimer.Tick += CoerceMediaCoreState;
+                    UpdatesTimer.Start();
+                }
+
                 InitializeComponent();
             }
             finally
@@ -99,130 +126,25 @@ namespace Unosquare.FFME
 
         #endregion
 
-        #region Events
-
-        /// <summary>
-        /// Occurs when a logging message from the FFmpeg library has been received.
-        /// This is shared across all instances of Media Elements.
-        /// </summary>
-        /// <remarks>
-        /// This event is raised on a background thread.
-        /// All interaction with UI elements requires calls on their corresponding dispatcher.
-        /// </remarks>
-        public static event EventHandler<MediaLogMessageEventArgs> FFmpegMessageLogged;
-
-        /// <summary>
-        /// Occurs when a logging message has been logged.
-        /// This does not include FFmpeg messages.
-        /// </summary>
-        /// <remarks>
-        /// This event is raised on a background thread.
-        /// All interaction with UI elements requires calls on their corresponding dispatcher.
-        /// </remarks>
-        public event EventHandler<MediaLogMessageEventArgs> MessageLogged;
-
-        /// <summary>
-        /// Raised before the input stream of the media is initialized.
-        /// Use this method to modify the input options.
-        /// </summary>
-        /// <remarks>
-        /// This event is raised on a background thread.
-        /// All interaction with UI elements requires calls on their corresponding dispatcher.
-        /// </remarks>
-        public event EventHandler<MediaInitializingEventArgs> MediaInitializing;
-
-        /// <summary>
-        /// Raised before the input stream of the media is opened.
-        /// Use this method to modify the media options and select streams.
-        /// </summary>
-        /// <remarks>
-        /// This event is raised on a background thread.
-        /// All interaction with UI elements requires calls on their corresponding dispatcher.
-        /// </remarks>
-        public event EventHandler<MediaOpeningEventArgs> MediaOpening;
-
-        /// <summary>
-        /// Raised before a change in media options is applied.
-        /// Use this method to modify the selected streams.
-        /// </summary>
-        /// <remarks>
-        /// This event is raised on a background thread.
-        /// All interaction with UI elements requires calls on their corresponding dispatcher.
-        /// </remarks>
-        public event EventHandler<MediaOpeningEventArgs> MediaChanging;
-
-        /// <inheritdoc />
-        public event PropertyChangedEventHandler PropertyChanged;
-
-        #endregion
-
         #region Properties
-
-        /// <summary>
-        /// Gets or sets the FFmpeg path from which to load the FFmpeg binaries.
-        /// You must set this path before setting the Source property for the first time on any instance of this control.
-        /// Setting this property when FFmpeg binaries have been registered will throw an exception.
-        /// </summary>
-        public static string FFmpegDirectory
-        {
-            get => MediaEngine.FFmpegDirectory;
-            set => MediaEngine.FFmpegDirectory = value;
-        }
-
-        /// <summary>
-        /// Specifies the bitwise flags that correspond to FFmpeg library identifiers.
-        /// Please use the <see cref="FFmpegLoadMode"/> class for valid combinations.
-        /// If FFmpeg is already loaded, the value cannot be changed.
-        /// </summary>
-        public static int FFmpegLoadModeFlags
-        {
-            get => MediaEngine.FFmpegLoadModeFlags;
-            set => MediaEngine.FFmpegLoadModeFlags = value;
-        }
-
-        /// <summary>
-        /// Gets the FFmpeg version information. Returns null
-        /// when the libraries have not been loaded.
-        /// </summary>
-        public static string FFmpegVersionInfo => MediaEngine.FFmpegVersionInfo;
-
-        /// <summary>
-        /// Gets or sets a value indicating whether the video visualization control
-        /// creates its own dispatcher thread to handle rendering of video frames.
-        /// This is an experimental feature and it is useful when creating video walls.
-        /// For example if you want to display multiple videos at a time and don't want to
-        /// use time from the main UI thread. This feature is only valid if we are in
-        /// a WPF context.
-        /// </summary>
-        public static bool EnableWpfMultiThreadedVideo { get; set; }
 
         /// <inheritdoc />
         Uri IUriContext.BaseUri { get; set; }
 
         /// <summary>
-        /// Gets a value indicating whether this instance is disposed.
+        /// Provides access to various internal media renderer options.
+        /// The default options are optimal to work for most media streams.
+        /// This is an advanced feature and it is not recommended to change these
+        /// options without careful consideration.
         /// </summary>
-        /// <value>
-        ///   <c>true</c> if this instance is disposed; otherwise, <c>false</c>.
-        /// </value>
-        public bool IsDisposed
-        {
-            get => m_IsDisposed.Value;
-            private set => m_IsDisposed.Value = value;
-        }
-
-        /// <summary>
-        /// Provides access to the underlying media engine driving this control.
-        /// This property is intended for advance usages only.
-        /// </summary>
-        internal MediaEngine MediaCore { get; private set; }
+        public RendererOptions RendererOptions { get; } = new RendererOptions();
 
         /// <summary>
         /// This is the image that holds video bitmaps. It is a Hosted Image which means that in a WPF
-        /// GUI context, it runs on its own dispatcher (multi-threaded UI)
+        /// GUI context, it runs on its own dispatcher (multi-threaded UI).
         /// </summary>
-        internal ImageHost VideoView { get; } = new ImageHost(
-            GuiContext.Current.Type == GuiContextType.WPF && EnableWpfMultiThreadedVideo) { Name = nameof(VideoView) };
+        internal ImageHost VideoView { get; } = new ImageHost(GuiContext.Current.Type == GuiContextType.WPF && Library.EnableWpfMultiThreadedVideo)
+        { Name = nameof(VideoView) };
 
         /// <summary>
         /// Gets the closed captions view control.
@@ -230,7 +152,7 @@ namespace Unosquare.FFME
         internal ClosedCaptionsControl CaptionsView { get; } = new ClosedCaptionsControl { Name = nameof(CaptionsView) };
 
         /// <summary>
-        /// A ViewBox holding the subtitle text blocks
+        /// A ViewBox holding the subtitle text blocks.
         /// </summary>
         internal SubtitlesControl SubtitlesView { get; } = new SubtitlesControl { Name = nameof(SubtitlesView) };
 
@@ -239,164 +161,58 @@ namespace Unosquare.FFME
         /// </summary>
         internal Grid ContentGrid { get; } = new Grid { Name = nameof(ContentGrid) };
 
+        /// <summary>
+        /// Determines whether the property values are being copied over from the
+        /// <see cref="MediaCore"/> state.
+        /// </summary>
+        internal bool IsStateUpdating
+        {
+            get => m_IsStateUpdating.Value;
+            set => m_IsStateUpdating.Value = value;
+        }
+
         #endregion
 
         #region Public API
 
         /// <summary>
-        /// Forces the pre-loading of the FFmpeg libraries according to the values of the
-        /// <see cref="FFmpegDirectory"/> and <see cref="FFmpegLoadModeFlags"/>
-        /// Also, sets the <see cref="FFmpegVersionInfo"/> property. Throws an exception
-        /// if the libraries cannot be loaded.
+        /// Captures the currently displayed video image and returns a GDI bitmap.
         /// </summary>
-        /// <returns>true if libraries were loaded, false if libraries were already loaded.</returns>
-        public static bool LoadFFmpeg() => MediaEngine.LoadFFmpeg();
-
-        /// <summary>
-        /// Requests new media options to be applied, including stream component selection.
-        /// Handle the <see cref="MediaChanging"/> event to set new <see cref="MediaOptions"/> based on
-        /// <see cref="MediaInfo"/> properties.
-        /// </summary>
-        /// <returns>The awaitable command</returns>
-        public async Task ChangeMedia()
+        /// <returns>The GDI bitmap copied from the video renderer.</returns>
+        public ConfiguredTaskAwaitable<Bitmap> CaptureBitmapAsync() => Task.Run(async () =>
         {
-            try { await MediaCore.ChangeMedia(); }
-            catch (Exception ex) { PostMediaFailedEvent(ex); }
-        }
+            Bitmap retrievedBitmap = null;
 
-        /// <summary>
-        /// Begins or resumes playback of the currently loaded media.
-        /// </summary>
-        /// <returns>The awaitable command</returns>
-        public async Task Play()
-        {
-            try { await MediaCore.Play(); }
-            catch (Exception ex) { PostMediaFailedEvent(ex); }
-        }
+            // Since VideoView might be hosted on a different dispatcher,
+            // we use the custom InvokeAsync method
+            var videoView = VideoView;
+            if (videoView == null)
+                return null;
 
-        /// <summary>
-        /// Pauses playback of the currently loaded media.
-        /// </summary>
-        /// <returns>The awaitable command</returns>
-        public async Task Pause()
-        {
-            try { await MediaCore.Pause(); }
-            catch (Exception ex) { PostMediaFailedEvent(ex); }
-        }
-
-        /// <summary>
-        /// Pauses and rewinds the currently loaded media.
-        /// </summary>
-        /// <returns>The awaitable command</returns>
-        public async Task Stop()
-        {
-            try { await MediaCore.Stop(); }
-            catch (Exception ex) { PostMediaFailedEvent(ex); }
-        }
-
-        /// <summary>
-        /// Closes the currently loaded media.
-        /// </summary>
-        /// <returns>The awaitable command</returns>
-        public async Task Close()
-        {
-            try
+            await videoView.InvokeAsync(() =>
             {
-                await MediaCore.Close();
-                Source = null;
-            }
-            catch (Exception ex) { PostMediaFailedEvent(ex); }
-        }
+                var source = videoView.Source?.Clone() as BitmapSource;
+                if (source == null)
+                    return;
 
-        /// <summary>
-        /// Seeks to the specified target position.
-        /// This is an alternative to using the <see cref="Position"/> dependency property.
-        /// </summary>
-        /// <param name="target">The target time to seek to.</param>
-        /// <returns>The awaitable command</returns>
-        public async Task Seek(TimeSpan target)
-        {
-            try { await MediaCore.Seek(target); }
-            catch (Exception ex) { PostMediaFailedEvent(ex); }
-        }
+                source.Freeze();
+                var encoder = new BmpBitmapEncoder();
+                encoder.Frames.Add(BitmapFrame.Create(source));
+                var stream = new MemoryStream();
+                encoder.Save(stream);
+                stream.Position = 0;
+                retrievedBitmap = new Bitmap(stream);
+            });
 
-        /// <summary>
-        /// Opens the specified URI.
-        /// This is an alternative method of opening media vs using the
-        /// <see cref="Source"/> Dependency Property.
-        /// </summary>
-        /// <param name="uri">The URI.</param>
-        /// <returns>The awaitable task.</returns>
-        public async Task Open(Uri uri)
-        {
-            try
-            {
-                IsOpeningViaCommand.Value = true;
-                await GuiContext.Current.InvokeAsync(() => Source = uri);
-                await MediaCore.Open(uri);
-            }
-            catch (Exception ex)
-            {
-                await GuiContext.Current.InvokeAsync(() => Source = null);
-                PostMediaFailedEvent(ex);
-                IsOpeningViaCommand.Value = false;
-            }
-        }
+            return retrievedBitmap;
+        }).ConfigureAwait(true);
 
-        /// <summary>
-        /// Opens the specified custom input stream.
-        /// </summary>
-        /// <param name="stream">The stream.</param>
-        /// <returns>The awaitable task</returns>
-        public async Task Open(IMediaInputStream stream)
-        {
-            try
-            {
-                IsOpeningViaCommand.Value = true;
-                await GuiContext.Current.InvokeAsync(() => Source = stream.StreamUri);
-                await MediaCore.Open(stream);
-            }
-            catch (Exception ex)
-            {
-                await GuiContext.Current.InvokeAsync(() => Source = null);
-                PostMediaFailedEvent(ex);
-                IsOpeningViaCommand.Value = false;
-            }
-        }
+        /// <inheritdoc />
+        public void Dispose() => Dispose(true);
 
         #endregion
 
         #region Methods
-
-        /// <inheritdoc />
-        public void Dispose()
-        {
-            lock (DisposeLock)
-            {
-                if (IsDisposed) return;
-                IsDisposed = true;
-
-                // Stop the property updates worker
-                PropertyUpdatesWorker.Dispose();
-
-                // Make sure we perform GUI operations on the GUI thread.
-                GuiContext.Current?.EnqueueInvoke(() =>
-                {
-                    // Remove event handlers
-                    try { VideoView.LayoutUpdated -= HandleVideoViewLayoutUpdates; }
-                    catch { /* Ignore if VideoView is already null by now. */ }
-
-                    // Remove all the controls
-                    ContentGrid?.Children.Remove(VideoView);
-                    ContentGrid?.Children.Remove(SubtitlesView);
-                    ContentGrid?.Children.Remove(CaptionsView);
-
-                    // Force Refresh
-                    ContentGrid?.Dispatcher?.InvokeAsync(() => { },
-                        DispatcherPriority.Render);
-                });
-            }
-        }
 
         /// <summary>
         /// Binds the property.
@@ -425,7 +241,7 @@ namespace Unosquare.FFME
         /// </summary>
         /// <param name="d">The d.</param>
         /// <param name="baseValue">The base value.</param>
-        /// <returns>The content property value</returns>
+        /// <returns>The content property value.</returns>
         /// <exception cref="InvalidOperationException">When content has been locked.</exception>
         private static object OnCoerceContentValue(DependencyObject d, object baseValue)
         {
@@ -505,25 +321,78 @@ namespace Unosquare.FFME
             ContentGrid.Children.Add(SubtitlesView);
             ContentGrid.Children.Add(CaptionsView);
 
+            UpdateDesignView();
+
             // Display the control (or not)
-            if (WindowsPlatform.Instance.IsInDesignTime == false)
+            if (!Library.IsInDesignMode)
             {
-                // Setup the media engine and associated property updates worker
-                MediaCore = new MediaEngine(this, new WindowsMediaConnector(this));
-                StartPropertyUpdatesWorker();
-            }
-            else
-            {
-                var bitmap = Properties.Resources.FFmpegMediaElementBackground;
-                var bitmapSource = Imaging.CreateBitmapSourceFromHBitmap(
-                    bitmap.GetHbitmap(), IntPtr.Zero, Int32Rect.Empty, BitmapSizeOptions.FromEmptyOptions());
-                var controlBitmap = new WriteableBitmap(bitmapSource);
-                VideoView.Source = controlBitmap;
+                // Check that all properties map back to the media state
+                if (PropertyMapper.MissingPropertyMappings.Count > 0)
+                {
+                    throw new KeyNotFoundException($"{nameof(MediaElement)} is missing properties exposed by {nameof(IMediaEngineState)}. " +
+                        $"Missing properties are: {string.Join(", ", PropertyMapper.MissingPropertyMappings)}. " +
+                        $"Please add these properties to the {nameof(MediaElement)} class.");
+                }
             }
 
             // Bind Content View Properties
             BindProperty(VideoView, HorizontalAlignmentProperty, this, nameof(HorizontalContentAlignment), BindingMode.OneWay);
             BindProperty(VideoView, VerticalAlignmentProperty, this, nameof(VerticalContentAlignment), BindingMode.OneWay);
+        }
+
+        private void CoerceMediaCoreState(object sender, EventArgs e)
+        {
+            // The notifications occur in the Background priority
+            // which is below the Input priority.
+            try
+            {
+                if (PropertyUpdates.Count <= 0)
+                    return;
+
+                IsStateUpdating = true;
+                while (PropertyUpdates.TryTake(out var p))
+                {
+                    if (p == nameof(Position) || p == nameof(NaturalDuration))
+                    {
+                        if (!IsSeeking)
+                            Position = MediaCore.State.Position;
+
+                        NotifyPropertyChangedEvent(nameof(RemainingDuration));
+                        NotifyPropertyChangedEvent(nameof(ActualPosition));
+                    }
+                    else if (p == nameof(Volume))
+                    {
+                        Volume = MediaCore.State.Volume;
+                    }
+                    else if (p == nameof(Balance))
+                    {
+                        Balance = MediaCore.State.Balance;
+                    }
+                    else if (p == nameof(IsMuted))
+                    {
+                        IsMuted = MediaCore.State.IsMuted;
+                    }
+                    else if (p == nameof(ScrubbingEnabled))
+                    {
+                        ScrubbingEnabled = MediaCore.State.ScrubbingEnabled;
+                    }
+                    else if (p == nameof(VerticalSyncEnabled))
+                    {
+                        VerticalSyncEnabled = MediaCore.State.VerticalSyncEnabled;
+                    }
+                    else if (p == nameof(SpeedRatio))
+                    {
+                        SpeedRatio = MediaCore.State.SpeedRatio;
+                    }
+
+                    NotifyPropertyChangedEvent(p);
+                }
+            }
+            finally
+            {
+                if (PropertyUpdates.Count <= 0)
+                    IsStateUpdating = false;
+            }
         }
 
         /// <summary>
@@ -533,66 +402,91 @@ namespace Unosquare.FFME
         /// <param name="e">The <see cref="EventArgs"/> instance containing the event data.</param>
         private void HandleVideoViewLayoutUpdates(object sender, EventArgs e)
         {
-            // Prevent running the code
-            lock (DisposeLock)
+            if (ContentGrid.Children.IndexOf(VideoView) < 0 || VideoView.Element == null)
+                return;
+
+            // Compute the position offset of the video
+            var videoPosition = VideoView.HasOwnDispatcher ?
+                VideoView.TransformToAncestor(ContentGrid).Transform(new Point(0, 0)) :
+                VideoView.Element.TransformToAncestor(ContentGrid).Transform(new Point(0, 0));
+
+            // Compute the dimensions of the video
+            var videoSize = VideoView.HasOwnDispatcher ?
+                VideoView.RenderSize :
+                VideoView.Element.DesiredSize;
+
+            // Validate the dimensions; avoid layout operations with invalid values
+            if (videoSize.Width <= 0 || double.IsNaN(videoSize.Width) ||
+                videoSize.Height <= 0 || double.IsNaN(videoSize.Height))
             {
-                if (IsDisposed || ContentGrid.Children.IndexOf(VideoView) < 0 || VideoView.Element == null)
-                    return;
+                return;
+            }
 
-                // Compute the position offset of the video
-                var videoPosition = VideoView.HasOwnDispatcher ?
-                    VideoView.TransformToAncestor(ContentGrid).Transform(new Point(0, 0)) :
-                    VideoView.Element.TransformToAncestor(ContentGrid).Transform(new Point(0, 0));
+            if (HasVideo || Library.IsInDesignMode)
+            {
+                // Position and Size the Captions View
+                CaptionsView.Width = Math.Floor(videoSize.Width);
+                CaptionsView.Height = Math.Floor(videoSize.Height * .80); // FCC Safe Caption Area Dimensions
+                CaptionsView.Margin = new Thickness(
+                    Math.Floor(videoPosition.X + ((videoSize.Width - CaptionsView.RenderSize.Width) / 2d)),
+                    Math.Floor(videoPosition.Y + ((videoSize.Height - CaptionsView.RenderSize.Height) / 2d)),
+                    0,
+                    0);
+                CaptionsView.Visibility = Visibility.Visible;
 
-                // Compute the dimensions of the video
-                var videoSize = VideoView.HasOwnDispatcher ?
-                    VideoView.RenderSize :
-                    VideoView.Element.DesiredSize;
+                // Position and Size the Subtitles View
+                SubtitlesView.Width = Math.Floor(videoSize.Width * 0.9d);
+                SubtitlesView.Height = Math.Floor(videoSize.Height / 8d);
+                SubtitlesView.Margin = new Thickness(
+                    Math.Floor(videoPosition.X + ((videoSize.Width - SubtitlesView.RenderSize.Width) / 2d)),
+                    Math.Floor(videoPosition.Y + videoSize.Height - (1.8 * SubtitlesView.RenderSize.Height)),
+                    0,
+                    0);
 
-                // Validate the dimensions; avoid layout operations with invalid values
-                if (videoSize.Width <= 0 || double.IsNaN(videoSize.Width) ||
-                    videoSize.Height <= 0 || double.IsNaN(videoSize.Height))
+                SubtitlesView.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                CaptionsView.Width = 0;
+                CaptionsView.Height = 0;
+                CaptionsView.Visibility = Visibility.Collapsed;
+
+                SubtitlesView.Width = 0;
+                SubtitlesView.Height = 0;
+                SubtitlesView.Visibility = Visibility.Collapsed;
+            }
+
+            UpdateDesignView();
+        }
+
+        private void UpdateDesignView()
+        {
+            if (!Library.IsInDesignMode) return;
+
+            var isPreviewEnabled = IsDesignPreviewEnabled;
+            var eventArgs = new DependencyPropertyChangedEventArgs(IsDesignPreviewEnabledProperty, isPreviewEnabled, isPreviewEnabled);
+            OnIsDesignPreviewEnabledPropertyChanged(this, eventArgs);
+        }
+
+        /// <summary>
+        /// Releases unmanaged and - optionally - managed resources.
+        /// </summary>
+        /// <param name="alsoManaged"><c>true</c> to release both managed and unmanaged resources; <c>false</c> to release only unmanaged resources.</param>
+        private void Dispose(bool alsoManaged)
+        {
+            if (!m_IsDisposed)
+            {
+                if (alsoManaged)
                 {
-                    return;
+                    MediaCore.Dispose();
+                    VideoView.Dispose();
+                    UpdatesTimer.Stop();
                 }
 
-                if (HasVideo || GuiContext.Current.IsInDesignTime)
-                {
-                    // Position and Size the Captions View
-                    CaptionsView.Width = Math.Floor(videoSize.Width);
-                    CaptionsView.Height = Math.Floor(videoSize.Height * .80); // FCC Safe Caption Area Dimensions
-                    CaptionsView.Margin = new Thickness(
-                        Math.Floor(videoPosition.X + ((videoSize.Width - CaptionsView.RenderSize.Width) / 2d)),
-                        Math.Floor(videoPosition.Y + ((videoSize.Height - CaptionsView.RenderSize.Height) / 2d)),
-                        0,
-                        0);
-                    CaptionsView.Visibility = Visibility.Visible;
-
-                    // Position and Size the Subtitles View
-                    SubtitlesView.Width = Math.Floor(videoSize.Width * 0.9d);
-                    SubtitlesView.Height = Math.Floor(videoSize.Height / 8d);
-                    SubtitlesView.Margin = new Thickness(
-                        Math.Floor(videoPosition.X + ((videoSize.Width - SubtitlesView.RenderSize.Width) / 2d)),
-                        Math.Floor(videoPosition.Y + videoSize.Height - (1.8 * SubtitlesView.RenderSize.Height)),
-                        0,
-                        0);
-
-                    SubtitlesView.Visibility = Visibility.Visible;
-                }
-                else
-                {
-                    CaptionsView.Width = 0;
-                    CaptionsView.Height = 0;
-                    CaptionsView.Visibility = Visibility.Collapsed;
-
-                    SubtitlesView.Width = 0;
-                    SubtitlesView.Height = 0;
-                    SubtitlesView.Visibility = Visibility.Collapsed;
-                }
+                m_IsDisposed = true;
             }
         }
 
         #endregion
     }
 }
-#pragma warning restore 67 // Event is never invoked

@@ -1,158 +1,93 @@
 ﻿<?xml version="1.0" encoding="utf-8"?>
-<Project ToolsVersion="14.0" DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
-  <Import Project="$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props" Condition="Exists('$(MSBuildExtensionsPath)\$(MSBuildToolsVersion)\Microsoft.Common.props')" />
+<Project Sdk="Microsoft.NET.Sdk.WindowsDesktop" ToolsVersion="Current">
+
   <PropertyGroup>
-    <Configuration Condition=" '$(Configuration)' == '' ">Debug</Configuration>
-    <Platform Condition=" '$(Platform)' == '' ">AnyCPU</Platform>
-    <ProjectGuid>{A6EB99A6-AAE2-4E6E-AB9E-93992CE5B84D}</ProjectGuid>
-    <OutputType>Library</OutputType>
-    <AppDesignerFolder>Properties</AppDesignerFolder>
+    <!-- Assembly Properties -->
+    <TargetFrameworks>netcoreapp3.1</TargetFrameworks>
+    <UseWPF>true</UseWPF>
+    <UseWindowsForms>true</UseWindowsForms>
     <RootNamespace>Unosquare.FFME</RootNamespace>
-    <AssemblyName>ffme.win</AssemblyName>
-    <TargetFrameworkVersion>v4.6.1</TargetFrameworkVersion>
-    <FileAlignment>512</FileAlignment>
-    <TargetFrameworkProfile />
-    <NuGetPackageImportStamp>
-    </NuGetPackageImportStamp>
     <LangVersion>latest</LangVersion>
-    <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\$(AssemblyName).xml</DocumentationFile>
-    <GenerateSerializationAssemblies>Off</GenerateSerializationAssemblies>
-    <RunCodeAnalysis>true</RunCodeAnalysis>
-    <ErrorReport>prompt</ErrorReport>
-    <WarningLevel>4</WarningLevel>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-    <PlatformTarget>AnyCPU</PlatformTarget>
-    <OutputPath>bin\$(Configuration)\</OutputPath>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AssemblyName>ffme.win</AssemblyName>
+    <Product>FFME: The Adavanced WPF MediaElement Alternative</Product>
+    <Company>Unosquare SA de CV</Company>
+    <CodeAnalysisRuleSet>..\Analyzers.ruleset</CodeAnalysisRuleSet>
+    <DocumentationFile>bin\$(Configuration)\$(TargetFramework)\$(AssemblyName).xml</DocumentationFile>
+    <NeutralLanguage>en</NeutralLanguage>
+
+    <!-- Assembly Version Information -->
+    <AssemblyVersion>4.2.340.0</AssemblyVersion>
+    <FileVersion>4.2.340.0</FileVersion>
+
+    <!-- NuGet Package Properties -->
+    <!-- https://docs.microsoft.com/en-us/nuget/reference/msbuild-targets#pack-target -->
+    <PackageId>FFME.Windows</PackageId>
+    <PackageVersion>4.2.340</PackageVersion>
+    <Version>4.2.340</Version>
+    <Authors>Mario Di Vece, and Contributors to the FFME project</Authors>
+    <Title>FFME: The Adavanced WPF MediaElement Alternative</Title>
+    <Description>FFME is an advanced WPF MediaElement alternative. While the standard MediaElement uses DirectX (DirectShow) for media playback, FFME uses FFmpeg to read and decode audio and video.</Description>
+    <Copyright>Unosquare SA de CV, Mario Di Vece, and Contributors, (C) 2015-2019</Copyright>
+    <PackageRequireLicenseAcceptance>true</PackageRequireLicenseAcceptance>
+    <PackageLicenseFile>LICENSE</PackageLicenseFile>
+    <PackageProjectUrl>https://github.com/unosquare/ffmediaelement</PackageProjectUrl>
+    <PackageIcon>ffme.png</PackageIcon>
+    <PackageTags>ffme hls wpf ffmpeg mediaelement h264 h265 hevc audio video decoding playback frame</PackageTags>
+    <PackageReleaseNotes>
+      This is a release package of the Floyd Engine build referencing bindings to FFmpeg version 4.2.1
+      This package does not contain the required FFmpeg binaries. Please refer to the following URL for instructions on how to obtain the binaries: https://github.com/unosquare/ffmediaelement
+      Release details: https://github.com/unosquare/ffmediaelement/milestone/15?closed=1
+    </PackageReleaseNotes>
+    <RepositoryUrl>https://github.com/unosquare/ffmediaelement</RepositoryUrl>
+    <RepositoryType>git</RepositoryType>
+    
   </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Debug|AnyCPU' ">
-    <DebugSymbols>true</DebugSymbols>
-    <DebugType>full</DebugType>
-    <Optimize>false</Optimize>
-    <DefineConstants>TRACE;DEBUG</DefineConstants>
-  </PropertyGroup>
-  <PropertyGroup Condition=" '$(Configuration)|$(Platform)' == 'Release|AnyCPU' ">
-    <DebugType>pdbonly</DebugType>
-    <Optimize>true</Optimize>
-    <DefineConstants>TRACE</DefineConstants>
-  </PropertyGroup>
-  <PropertyGroup>
-    <CodeAnalysisRuleSet>..\StyleCop.Analyzers.ruleset</CodeAnalysisRuleSet>
-    <ApplicationIcon />
-  </PropertyGroup>
+
   <ItemGroup>
-    <Reference Include="FFmpeg.AutoGen, Version=4.0.0.4, Culture=neutral, PublicKeyToken=9b7632533a381715, processorArchitecture=MSIL">
-      <HintPath>..\packages\FFmpeg.AutoGen.4.0.0.4\lib\net45\FFmpeg.AutoGen.dll</HintPath>
-    </Reference>
-    <Reference Include="PresentationCore" />
-    <Reference Include="PresentationFramework" />
-    <Reference Include="System" />
-    <Reference Include="System.Core" />
-    <Reference Include="System.Drawing" />
-    <Reference Include="System.Web" />
-    <Reference Include="System.Windows" />
-    <Reference Include="System.Windows.Forms" />
-    <Reference Include="System.Xaml" />
-    <Reference Include="WindowsBase" />
+    <None Include="$(SolutionDir)\Support\readme.txt" Pack="true" PackagePath="" />
+    <None Include="$(SolutionDir)\LICENSE" Pack="true" PackagePath="" />
+    <None Include="$(SolutionDir)\Support\ffme.png" Pack="true" PackagePath="" />
   </ItemGroup>
+  
   <ItemGroup>
-    <Compile Include="Events\BitmapDataBuffer.cs" />
-    <Compile Include="Events\MediaInitializingEventArgs.cs" />
-    <Compile Include="Events\MediaOpenedRoutedEventArgs.cs" />
-    <Compile Include="Events\MediaStateChangedRoutedEventArgs.cs" />
-    <Compile Include="Events\RenderingAudioEventArgs.cs" />
-    <Compile Include="Events\RenderingEventArgs.cs" />
-    <Compile Include="Events\RenderingSubtitlesEventArgs.cs" />
-    <Compile Include="Events\RenderingVideoEventArgs.cs" />
-    <Compile Include="MediaElement.PropertyUpdates.cs" />
-    <Compile Include="Platform\GuiTimer.cs" />
-    <Compile Include="Platform\PropertyMapper.cs" />
-    <Compile Include="Platform\GuiContextType.cs" />
-    <Compile Include="Playlists\AttributeSet.cs" />
-    <Compile Include="Playlists\Playlist.cs" />
-    <Compile Include="Playlists\PlaylistEntry.cs" />
-    <Compile Include="Playlists\PlaylistExtensions.cs" />
-    <Compile Include="Rendering\AudioDeviceInfo.cs" />
-    <Compile Include="Rendering\ClosedCaptionsBuffer.cs" />
-    <Compile Include="Rendering\ClosedCaptionsCell.cs" />
-    <Compile Include="Rendering\ClosedCaptionsCellState.cs" />
-    <Compile Include="Rendering\ClosedCaptionsControl.cs" />
-    <Compile Include="Rendering\ImageHost.cs" />
-    <Compile Include="Rendering\ElementHostBase.cs" />
-    <Compile Include="Rendering\RendererOptions.cs" />
-    <Compile Include="Rendering\Wave\DirectSoundDeviceInfo.cs" />
-    <Compile Include="Rendering\Wave\DirectSoundPlayer.cs" />
-    <Compile Include="Rendering\Wave\IWavePlayer.cs" />
-    <Compile Include="Rendering\LegacyAudioException.cs" />
-    <Compile Include="Subtitles.cs" />
-    <Compile Include="Platform\WindowsMediaConnector.cs" />
-    <Compile Include="Platform\WindowsNativeMethods.cs" />
-    <Compile Include="Platform\WindowsPlatform.cs" />
-    <Compile Include="MediaElement.RenderEvents.cs" />
-    <Compile Include="Events\MediaLogMessageEventArgs.cs" />
-    <Compile Include="Platform\GuiContext.cs" />
-    <Compile Include="Events\PositionChangedRoutedEventArgs.cs" />
-    <Compile Include="Platform\SoundTouch.cs" />
-    <Compile Include="Rendering\SubtitlesControl.cs" />
-    <Compile Include="Rendering\Wave\IWaveProvider.cs" />
-    <Compile Include="Rendering\LegacyAudioResult.cs" />
-    <Compile Include="Rendering\Wave\MmTime.cs" />
-    <Compile Include="Rendering\Wave\PlaybackState.cs" />
-    <Compile Include="Rendering\Wave\SupportedWaveFormat.cs" />
-    <Compile Include="Rendering\Wave\WaveFormat.cs" />
-    <Compile Include="Rendering\Wave\WaveHeader.cs" />
-    <Compile Include="Rendering\Wave\WaveHeaderFlags.cs" />
-    <Compile Include="Rendering\Wave\WaveInterop.cs" />
-    <Compile Include="Rendering\Wave\WaveOutBuffer.cs" />
-    <Compile Include="Rendering\Wave\LegacyAudioDeviceInfo.cs" />
-    <Compile Include="MediaElement.cs" />
-    <Compile Include="MediaElement.DependencyProperties.cs" />
-    <Compile Include="MediaElement.MediaProperties.cs" />
-    <Compile Include="MediaElement.RoutedEvents.cs" />
-    <Compile Include="Events\MediaOpeningEventArgs.cs" />
-    <Compile Include="Rendering\Wave\WaveOutSupport.cs" />
-    <Compile Include="Rendering\Wave\LegacyAudioPlayer.cs" />
-    <Compile Include="Properties\AssemblyInfo.cs" />
-    <Compile Include="Properties\Resources.Designer.cs">
-      <AutoGen>True</AutoGen>
+    <Compile Update="Properties\Resources.Designer.cs">
       <DesignTime>True</DesignTime>
+      <AutoGen>True</AutoGen>
       <DependentUpon>Resources.resx</DependentUpon>
     </Compile>
-    <Compile Include="Rendering\AudioRenderer.cs" />
-    <Compile Include="Rendering\SubtitleRenderer.cs" />
-    <Compile Include="Rendering\VideoRenderer.cs" />
   </ItemGroup>
+
   <ItemGroup>
-    <EmbeddedResource Include="Properties\Resources.resx">
+    <EmbeddedResource Update="Properties\Resources.resx">
       <Generator>ResXFileCodeGenerator</Generator>
       <LastGenOutput>Resources.Designer.cs</LastGenOutput>
     </EmbeddedResource>
   </ItemGroup>
+
   <ItemGroup>
-    <None Include="packages.config">
-      <SubType>Designer</SubType>
-    </None>
-    <None Include="Resources\ffme-preview.png" />
+    <PackageReference Include="FFmpeg.AutoGen" Version="4.2.0" />
+    <PackageReference Include="Microsoft.CodeAnalysis.FxCopAnalyzers" Version="2.9.2">
+      <PrivateAssets>all</PrivateAssets>
+    </PackageReference>
+    <PackageReference Include="StyleCop.Analyzers" Version="1.1.118">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
-  <ItemGroup>
-    <EmbeddedResource Include="MediaElement.png" />
+
+  <ItemGroup Condition="'$(TargetFramework)' != 'netcoreapp3.0' AND '$(TargetFramework)' != 'netcoreapp3.1'">
+    <Reference Include="WindowsBase" />
+    <Reference Include="PresentationCore" />
+    <Reference Include="PresentationFramework" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Xaml" />
+    <Reference Include="System.Web" />
   </ItemGroup>
-  <ItemGroup>
-    <ProjectReference Include="..\Unosquare.FFME.Common\Unosquare.FFME.Common.csproj">
-      <Project>{76b2db70-c8ab-4517-8afb-051383e496b7}</Project>
-      <Name>Unosquare.FFME.Common</Name>
-    </ProjectReference>
-  </ItemGroup>
-  <ItemGroup>
-    <Analyzer Include="..\packages\StyleCop.Analyzers.1.0.0\analyzers\dotnet\cs\Newtonsoft.Json.dll" />
-    <Analyzer Include="..\packages\StyleCop.Analyzers.1.0.0\analyzers\dotnet\cs\StyleCop.Analyzers.CodeFixes.dll" />
-    <Analyzer Include="..\packages\StyleCop.Analyzers.1.0.0\analyzers\dotnet\cs\StyleCop.Analyzers.dll" />
-  </ItemGroup>
-  <Import Project="$(MSBuildToolsPath)\Microsoft.CSharp.targets" />
-  <!-- To modify your build process, add your task inside one of the targets below and uncomment it. 
-       Other similar extension points exist, see Microsoft.Common.targets.
-  <Target Name="BeforeBuild">
-  </Target>
-  <Target Name="AfterBuild">
-  </Target>
-  -->
+
+  <Import Project="..\Unosquare.FFME.MediaElement\Unosquare.FFME.MediaElement.projitems" Label="Shared" />
+
+  <Import Project="..\Unosquare.FFME\Unosquare.FFME.projitems" Label="Shared" />
+
 </Project>

@@ -1,4 +1,4 @@
-# FFME: *WPF MediaElement Alternative*
+# FFME: *The Advanced WPF MediaElement Alternative*
 
 [![Join the chat at https://gitter.im/ffmediaelement/Lobby](https://badges.gitter.im/ffmediaelement/Lobby.svg)](https://gitter.im/ffmediaelement/Lobby?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 [![Analytics](https://ga-beacon.appspot.com/UA-8535255-2/unosquare/ffmediaelement/)](https://github.com/igrigorik/ga-beacon)
@@ -13,54 +13,59 @@
 
 ## Current NuGet Release Status
 - If you would like to support this project, you can show your appreciation via [PayPal.Me](https://www.paypal.me/mariodivece/50usd)
-- Current Status: (2018-06-03) - Release 4.0.260 is now available, (see the <a href="https://github.com/unosquare/ffmediaelement/releases">Releases</a>)
+- Current Status: (2019-12-28) - Release 4.2.330 is now available, (see the <a href="https://github.com/unosquare/ffmediaelement/releases">Releases</a>)
 - NuGet Package available here: https://www.nuget.org/packages/FFME.Windows/
-- FFmpeg Version: <a href="https://ffmpeg.zeranoe.com/builds/win32/shared/ffmpeg-4.0-win32-shared.zip">4.0.0 (32-bit)</a>
-- SoundTouch library : <a href="https://www.surina.net/soundtouch/download.html">Version 2.1</a>
+- FFmpeg Version: 4.2.1 <a href="https://ffmpeg.zeranoe.com/builds/win32/shared/ffmpeg-4.2.1-win32-shared.zip">32-bit</a> or <a href="https://ffmpeg.zeranoe.com/builds/win64/shared/ffmpeg-4.2.1-win64-shared.zip">64-bit</a>
+- BREAKING CHANGE: Starting realease 4.1.320 the `Source` dependency property has been downgraded to a notification property. Please use the asynchronous `Open` and `Close` methods instead.
 
 *Please note the current NuGet realease might require a different version of the FFmpeg binaries than the ones of the current state of the source code.*
 
 ## Quick Usage Guide for WPF Apps
 
 Here is a quick guide on how to get started.
-1. Open Visual Studio (v2017 recommended), and create a new WPF Application. Target Framework must be 4.6.1 or above.
+1. Open Visual Studio (v2019 preview recommended), and create a new WPF Application. Target Framework must be 4.6.1 or above, or .Net Core 3.0 or above.
 2. Install the NuGet Package from your Package Manager Console: `PM> Install-Package FFME.Windows`
-3. You need FFmpeg binaries now. Build your own or download a compatible build from [Zeranoe FFmpeg Builds site](https://ffmpeg.zeranoe.com/builds/).
+3. You need FFmpeg **shared** binaries (64 or 32 bit, depending on your app's target architecture). Build your own or download a compatible build from [Zeranoe FFmpeg Builds site](https://ffmpeg.zeranoe.com/builds/).
 4. Your FFmpeg build should have a `bin` folder with 3 exe files and some dll files. Copy all those files to a folder such as `c:\ffmpeg`
-5. Within you application's startup code (`Main` method), set `Unosquare.FFME.MediaElement.FFmpegDirectory = @"c:\ffmpeg";`.
+5. Within you application's startup code (`Main` method), set `Unosquare.FFME.Library.FFmpegDirectory = @"c:\ffmpeg";`.
 6. Use the FFME `MediaElement` control as any other WPF control.
 For example: In your `MainForm.xaml`, add the namespace: `xmlns:ffme="clr-namespace:Unosquare.FFME;assembly=ffme.win"` and then add the FFME control your window's XAML: `<ffme:MediaElement x:Name="Media" Background="Gray" LoadedBehavior="Play" UnloadedBehavior="Manual" />` 
-7. To play files or streams, simply set the `Source` property: `Media.Source = new Uri(@"c:\your-file-here");`
+7. To play files or streams, simply call the asynchronous method `Open`: `await Media.Open(new Uri(@"c:\your-file-here"));`. Conversely you close the media by calling `await Media.Close();`
+
+Note: To build your own FFmpeg binaries, I recommend the [Media Autobuild Suite](https://github.com/jb-alvarado/media-autobuild_suite) but please don't ask for help on it here.
 
 ### Additional Usage Notes
-- Remember: The `Unosquare.FFME.Windows.Sample` provides plenty of usage examples
+- Remember: The `Unosquare.FFME.Windows.Sample` provides usage examples for plenty of features. Use it as your main reference.
 - The generated API documentation is available [here](http://unosquare.github.io/ffmediaelement/api/Unosquare.FFME.html)
 
 ## Features Overview
-FFME is a close (and I'd like to think better) drop-in replacement for <a href="https://msdn.microsoft.com/en-us/library/system.windows.controls.mediaelement(v=vs.110).aspx">Microsoft's WPF MediaElement Control</a>. While the standard MediaElement uses DirectX (DirectShow) for media playback, FFME uses <a href="http://ffmpeg.org/">FFmpeg</a> to read and decode audio and video. This means that for those of you who want to support stuff like HLS playback, or just don't want to go through the hassle of installing codecs on client machines, using FFME *might* just be the answer. 
+FFME is an advanced and close drop-in replacement for <a href="https://msdn.microsoft.com/en-us/library/system.windows.controls.mediaelement(v=vs.110).aspx">Microsoft's WPF MediaElement Control</a>. While the standard MediaElement uses DirectX (DirectShow) for media playback, FFME uses <a href="http://ffmpeg.org/">FFmpeg</a> to read and decode audio and video. This means that for those of you who want to support stuff like HLS playback, or just don't want to go through the hassle of installing codecs on client machines, using FFME *might* just be the answer. 
 
 FFME provides multiple improvements over the standard MediaElement such as:
-- Fast media seeking and frame-by-frame seeking
-- Properties such as Position, Balance, SpeedRatio, IsMuted, and Volume are all Dependency Properties!
+- Fast media seeking and frame-by-frame seeking.
+- Properties such as Position, Balance, SpeedRatio, IsMuted, and Volume are all Dependency Properties.
 - Additional and extended media events. Extracting (and modifying) video, audio and subtitle frames is very easy.
-- Ability to easily apply FFmpeg video and audio filtergraphs.
-- Ability to extract media metadata and tech specs of a media stream (title, album, bit rate, codecs, FPS, etc).
-- Ability to apply volume, balance and speed ratio to media playback.
-- MediaState actually works on this control. The standard WPF MediaElement severely lacks in this area.
+- Easily apply FFmpeg video and audio filtergraphs.
+- Extract media metadata and specs of a media stream (title, album, bit rate, codecs, FPS, etc).
+- Apply volume, balance and speed ratio to media playback.
+- MediaState actually works on this control. The standard WPF MediaElement is severely lacking in this area.
 - Ability to pick media streams contained in a file or a URL.
-- Ability to pass input and codec parameters.
-- Ability to introduce hardware decoding acceleration via devices or via codecs.
+- Specify input and codec parameters.
+- Opt-in hardware decoding acceleration via devices or via codecs.
+- Capture stream packets, audio, video and subtitle frames.
+- Change raw video, audio and subtitle data upon rendering.
+- Perform custom stream reading and stream recording.
 
 *... all in a single MediaElement control*
 
-FFME also supports opening capture devices. See example Source URLs below and [issue #48](https://github.com/unosquare/ffmediaelement/issues/48)
+FFME also supports opening capture devices. See example URLs below and [issue #48](https://github.com/unosquare/ffmediaelement/issues/48)
 ```
-device://dshow/?audio=Microphone (Vengeance 2100)
+device://dshow/?audio=Microphone (Vengeance 2100):video=MS Webcam 4000
 device://gdigrab?title=Command Prompt
 device://gdigrab?desktop
 ```
 
-If you'd like audio to not change pitch while changing the SpeedRatio property, you'll need the `SoundTouch.dll` library available on the same directory as your application. You can get the [SoundTouch library here](https://www.surina.net/soundtouch/).
+If you'd like audio to not change pitch while changing the SpeedRatio property, you'll need the `SoundTouch.dll` library v2.1.1 available on the same directory as the FFmpeg binaries. You can get the [SoundTouch library here](https://www.surina.net/soundtouch/).
 
 ### About how it works
 
@@ -90,48 +95,45 @@ A high-level diagram is provided as additional reference below.
 
 *Please note that I am unable to distribute FFmpeg's binaries because I don't know if I am allowed to do so. Follow the instructions below to compile, run and test FFME.*
 
-1. Clone this repository.
-2. Download the FFmpeg win32-shared binaries from <a href="https://ffmpeg.zeranoe.com/builds/win32/shared/ffmpeg-4.0-win32-shared.zip">Zeranoe FFmpeg Builds</a>.
+1. Clone this repository and make sure you have <a href="https://dotnet.microsoft.com/download/dotnet-core/3.1">.Net Core 3.1 or above</a> installed.
+2. Download the FFmpeg **shared** binaries for your target architecture: <a href="https://ffmpeg.zeranoe.com/builds/win32/shared/ffmpeg-4.2.1-win32-shared.zip">32-bit</a> or <a href="https://ffmpeg.zeranoe.com/builds/win64/shared/ffmpeg-4.2.1-win64-shared.zip">64-bit</a>.
 3. Extract the contents of the <code>zip</code> file you just downloaded and go to the <code>bin</code> folder that got extracted. You should see 3 <code>exe</code> files and multiple <code>dll</code> files. Select and copy all of them.
-4. Now paste all 11 files from the prior step onto a well-known folder. Take note of the full path. (I used `c:\ffmpeg\`)
-5. Open the solution and set the <code>Unosquare.FFME.Windows.Sample</code> project as the startup project. You can do this by right clicking on the project and selecting <code>Set as startup project</code>
-6. Under the <code>Unosquare.FFME.Windows.Sample</code> project, find the file `App.xaml.cs` and under the constructor, locate the line <code>MediaElement.FFmpegDirectory = @"c:\ffmpeg";</code> and replace the path so that it points to the folder where you extracted your FFmpeg binaries (dll files).
+4. Now paste all files from the prior step onto a well-known folder. Take note of the full path. (I used `c:\ffmpeg\`)
+5. Open the solution and set the <code>Unosquare.FFME.Windows.Sample</code> project as the startup project. You can do this by right clicking on the project and selecting <code>Set as startup project</code>. Please note that you will need Visual Studio 2019 with dotnet Core 3.0 SDK for your target architecture installed.
+6. Under the <code>Unosquare.FFME.Windows.Sample</code> project, find the file `App.xaml.cs` and under the constructor, locate the line <code>Library.FFmpegDirectory = @"c:\ffmpeg";</code> and replace the path so that it points to the folder where you extracted your FFmpeg binaries (dll files).
 7. Click on <code>Start</code> to run the project.
 8. You should see a sample media player. Click on the <code>Open</code> icon located at the bottom right and enter a URL or path to a media file.
 9. The file or URL should play immediately, and all the properties should display to the right of the media display by clicking on the <code>Info</code> icon.
-10. You can use the resulting compiled assemblies in your project without further dependencies. Look for both ```ffme.common.dll``` and ```ffme.win.dll```.
+10. You can use the resulting compiled assemblies in your project without further dependencies. Look for ```ffme.win.dll```.
 
-### Windows: Troubleshooting
+### ffmeplay.exe Sample Application
 
-If you get the following error when compiling:
-*The current .NET SDK does not support targeting .NET Standard 2.0. Either target .NET Standard 1.6 or lower, or use a version of the .NET SDK that supports .NET Standard 2.0.*
+The source code for this project contains a very capable media player (`FFME.Windows.Sample`) covering most of the use cases for the `FFME` control. If you are just checking things out, here is a quick set of shortcut keys that `ffmeplay` accepts.
 
-Simply download and install [.NET Core SDK v2](https://www.microsoft.com/net/download/windows) or later.
-
-## MacOS: Sample Player (in preview, WIP)
-Compile FFmpeg for Mac (instructions can be found on [FFmpeg.AutoGen](https://github.com/Ruslan-B/FFmpeg.AutoGen)) and copy the following libraries from `/opt/local/lib` 's to `/Users/{USER}/ffmpeg` (equivalent to `~/ffmpeg`):
- - `libavcodec.57.dylib`
- - `libavdevice.57.dylib`
- - `libavfilter.6.dylib`
- - `libavformat.57.dylib`
- - `libavutil.55.dylib`
- - `libswresample.2.dylib`
- - `libswscale.4.dylib`
-
-*Note: when building FFmpeg locally, compiled libraries are named differently than in the list above. E.g. `libavcodec.57.dylib` is actually named `libavcodec.57.89.100.dylib`. To properly load libraries, copy and rename each library to match the format in the list above.*
-
-In the sample MacOS player, the FFmpeg folder is configured to point to `~/ffmpeg` in the following line of code:
-
-```csharp
-Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "ffmpeg");
-```
-
-Note that this can be customized to point to any other folder.
-
-When distributing the player and the associated libraries with your application, dll files should be added to the project as `BundleResource` items. Also, each library should be copied to the output directory on build. Afterwards, change the above configuration to use `Environment.CurrentDirectory` to search for FFmpeg libraries.
-
-### MacOS: Troubleshooting
-Make sure you have Xamarin for Visual Studio 2017 installed if you want to open the MacOS projects.
+| Shortcut Key | Function Description |
+| --- | --- |
+| G | Example of toggling subtitle color |
+| Left | Seek 1 frame to the left |
+| Right | Seek 1 frame to the right |
+| + / Volume Up | Increase Audio Volume |
+| - / Volume Down | Decrease Audio Volume |
+| M / Volume Mute | Mute Audio |
+| Up | Increase playback Speed |
+| Down | Decrease playback speed |
+| A | Cycle Through Audio Streams |
+| S | Cycle Through Subtitle Streams |
+| Q | Cycle Through Video Streams |
+| C | Cycle Through Closed Caption Channels |
+| R | Reset Changes |
+| Y / H | Contrast: Increase / Decrease |
+| U / J | Brightness: Increase / Decrease |
+| I / K | Saturation: Increase / Decrease |
+| E | Example of cycling through audio filters |
+| T | Capture Screenshot to `desktop/ffplay` folder |
+| W | Start/Stop recording packets (no transcoding) into a transport stream to `desktop/ffplay` folder. |
+| Double-click | Enter fullscreen |
+| Escape | Exit fullscreen |
+| Mouse Wheel Up / Down | Zoom: In / Out |
 
 ## Thanks
 *In no particular order*

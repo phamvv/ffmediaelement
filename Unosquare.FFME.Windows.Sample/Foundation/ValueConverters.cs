@@ -1,8 +1,8 @@
 ﻿#pragma warning disable SA1649 // File name must match first type name
+#pragma warning disable CA1812 // Remove classes that are apparently never instantiated
 namespace Unosquare.FFME.Windows.Sample.Foundation
 {
     using ClosedCaptions;
-    using Platform;
     using System;
     using System.Globalization;
     using System.Windows;
@@ -59,6 +59,9 @@ namespace Unosquare.FFME.Windows.Sample.Foundation
                     return string.Empty;
             }
 
+            if (p.Value == TimeSpan.MinValue)
+                return "N/A";
+
             return $"{(int)p.Value.TotalHours:00}:{p.Value.Minutes:00}:{p.Value.Seconds:00}.{p.Value.Milliseconds:000}";
         }
 
@@ -77,7 +80,7 @@ namespace Unosquare.FFME.Windows.Sample.Foundation
             const double minMegaByte = 1024 * 1024;
             const double minGigaByte = 1024 * 1024 * 1024;
 
-            var byteCount = System.Convert.ToDouble(value);
+            var byteCount = System.Convert.ToDouble(value, CultureInfo.InvariantCulture);
 
             var suffix = "b";
             var output = 0d;
@@ -94,7 +97,6 @@ namespace Unosquare.FFME.Windows.Sample.Foundation
                 output = Math.Round(byteCount / minMegaByte, 2);
             }
 
-            // ReSharper disable once InvertIf
             if (byteCount >= minGigaByte)
             {
                 suffix = "GB";
@@ -121,7 +123,7 @@ namespace Unosquare.FFME.Windows.Sample.Foundation
             const double minMegaBit = 1000 * 1000;
             const double minGigaBit = 1000 * 1000 * 1000;
 
-            var byteCount = System.Convert.ToDouble(value);
+            var byteCount = System.Convert.ToDouble(value, CultureInfo.InvariantCulture);
 
             var suffix = "bits/s";
             var output = 0d;
@@ -138,7 +140,6 @@ namespace Unosquare.FFME.Windows.Sample.Foundation
                 output = Math.Round(byteCount / minMegaBit, 2);
             }
 
-            // ReSharper disable once InvertIf
             if (byteCount >= minGigaBit)
             {
                 suffix = "Gbits/s";
@@ -183,10 +184,10 @@ namespace Unosquare.FFME.Windows.Sample.Foundation
         /// <inheritdoc />
         public object Convert(object value, Type targetType, object format, CultureInfo culture)
         {
-            if (value is string thumbnailFilename && GuiContext.Current.IsInDesignTime == false)
+            if (value is string thumbnailFilename && !App.IsInDesignMode)
             {
                 return ThumbnailGenerator.GetThumbnail(
-                    App.Current.ViewModel.Playlist.ThumbsDirectory, thumbnailFilename);
+                    App.ViewModel.Playlist.ThumbsDirectory, thumbnailFilename);
             }
 
             return default(ImageSource);
@@ -226,7 +227,7 @@ namespace Unosquare.FFME.Windows.Sample.Foundation
         {
             if (value == null) return "unknown";
             var utcDate = (DateTime)value;
-            return utcDate.ToLocalTime().ToString("f");
+            return utcDate.ToLocalTime().ToString("f", CultureInfo.InvariantCulture);
         }
 
         /// <inheritdoc />
@@ -241,15 +242,41 @@ namespace Unosquare.FFME.Windows.Sample.Foundation
         /// <inheritdoc />
         public object Convert(object value, Type targetType, object parameter, CultureInfo culture)
         {
-            if (targetType != typeof(bool))
-                throw new InvalidOperationException("The target must be a boolean");
+            if (targetType != typeof(bool) && targetType != typeof(bool?))
+                throw new InvalidOperationException("The target must be a boolean or a nullable boolean");
 
-            return value != null && !(bool)value;
+            if (value is bool?)
+            {
+                var nullableBool = (bool?)value;
+                return nullableBool.HasValue ? !nullableBool.Value : true;
+            }
+
+            if (value.GetType() == typeof(bool))
+            {
+                return !((bool)value);
+            }
+
+            return true;
         }
 
         /// <inheritdoc />
-        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture) =>
-            throw new NotSupportedException();
+        public object ConvertBack(object value, Type targetType, object parameter, CultureInfo culture)
+        {
+            if (value == null) return true;
+
+            if (value is bool?)
+            {
+                var nullableBool = (bool?)value;
+                return nullableBool.HasValue ? !nullableBool.Value : true;
+            }
+
+            if (value.GetType() == typeof(bool))
+            {
+                return !((bool)value);
+            }
+
+            return true;
+        }
     }
 
     /// <inheritdoc />
@@ -265,4 +292,5 @@ namespace Unosquare.FFME.Windows.Sample.Foundation
             value != null && (bool)value ? CaptionsChannel.CC1 : CaptionsChannel.CCP;
     }
 }
+#pragma warning restore CA1812 // Remove classes that are apparently never instantiated
 #pragma warning restore SA1649 // File name must match first type name

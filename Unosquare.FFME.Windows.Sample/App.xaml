@@ -6,6 +6,7 @@
     <Application.Resources>
         <ResourceDictionary>
             <ResourceDictionary.MergedDictionaries>
+
                 <ResourceDictionary>
                     <vm:RootViewModel x:Key="ViewModel" />
                 </ResourceDictionary>

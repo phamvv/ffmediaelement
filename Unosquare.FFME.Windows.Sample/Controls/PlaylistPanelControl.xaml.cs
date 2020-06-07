@@ -1,14 +1,14 @@
 ﻿namespace Unosquare.FFME.Windows.Sample.Controls
 {
     using Foundation;
-    using Platform;
     using System;
+    using System.Windows;
     using System.Windows.Controls.Primitives;
     using System.Windows.Input;
     using ViewModels;
 
     /// <summary>
-    /// Interaction logic for PlaylistPanelControl.xaml
+    /// Interaction logic for PlaylistPanelControl.xaml.
     /// </summary>
     public partial class PlaylistPanelControl
     {
@@ -20,14 +20,14 @@
             InitializeComponent();
 
             // Prevent binding to the events
-            if (GuiContext.Current.IsInDesignTime)
+            if (App.IsInDesignMode)
                 return;
 
             // Bind the Enter key to the command
             OpenFileTextBox.KeyDown += async (s, e) =>
             {
                 if (e.Key != Key.Enter) return;
-                await App.Current.Commands.OpenCommand.ExecuteAsync(OpenFileTextBox.Text);
+                await App.ViewModel.Commands.OpenCommand.ExecuteAsync(OpenFileTextBox.Text);
                 e.Handled = true;
             };
 
@@ -52,7 +52,7 @@
         #region Properties
 
         /// <summary>
-        /// A proxy, strongly-typed property to the underlying DataContext
+        /// A proxy, strongly-typed property to the underlying DataContext.
         /// </summary>
         public RootViewModel ViewModel => DataContext as RootViewModel;
 
@@ -62,12 +62,12 @@
         {
             DeferredAction.Create(context =>
             {
-                if (textBox == null || App.Current == null || App.Current.MainWindow == null)
+                if (textBox == null || Application.Current == null || Application.Current.MainWindow == null)
                     return;
 
                 textBox.Focus();
                 textBox.SelectAll();
-                FocusManager.SetFocusedElement(App.Current.MainWindow, textBox);
+                FocusManager.SetFocusedElement(Application.Current.MainWindow, textBox);
                 Keyboard.Focus(textBox);
 
                 if (textBox.IsVisible == false || textBox.IsKeyboardFocused)

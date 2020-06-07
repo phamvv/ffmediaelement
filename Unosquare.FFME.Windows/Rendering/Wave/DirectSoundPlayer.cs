@@ -1,7 +1,7 @@
 ﻿namespace Unosquare.FFME.Rendering.Wave
 {
+    using Diagnostics;
     using Primitives;
-    using Shared;
     using System;
     using System.Collections.Generic;
     using System.Diagnostics;
@@ -12,26 +12,23 @@
     /// <summary>
     /// NativeDirectSoundOut using DirectSound COM interop.
     /// Contact author: Alexandre Mutel - alexandre_mutel at yahoo.fr
-    /// Modified by: Graham "Gee" Plumb
+    /// Modified by: Graham "Gee" Plumb.
     /// </summary>
-    internal sealed class DirectSoundPlayer : IWavePlayer
+    internal sealed class DirectSoundPlayer : IntervalWorkerBase, IWavePlayer, ILoggingSource
     {
         #region Fields
 
         /// <summary>
-        /// DirectSound default playback device GUID
+        /// DirectSound default playback device GUID.
         /// </summary>
         public static readonly Guid DefaultPlaybackDeviceId = new Guid("DEF00000-9C6D-47ED-AAF1-4DDA8F2B5C03");
 
         // Device enumerations
         private static readonly object DevicesEnumLock = new object();
-        private static List<DirectSoundDeviceInfo> EnumeratedDevices;
+        private static List<DirectSoundDeviceData> EnumeratedDevices;
 
         // Instance fields
-        private readonly AtomicBoolean IsCancellationPending = new AtomicBoolean(false);
-        private readonly IWaitEvent PlaybackFinished = WaitEventFactory.Create(isCompleted: true, useSlim: true);
         private readonly EventWaitHandle CancelEvent = new EventWaitHandle(false, EventResetMode.ManualReset);
-        private readonly AtomicBoolean m_IsDisposed = new AtomicBoolean(false);
 
         private readonly WaveFormat WaveFormat;
         private int SamplesTotalSize;
@@ -45,7 +42,7 @@
         private EventWaitHandle FrameStartEventWaitHandle;
         private EventWaitHandle FrameEndEventWaitHandle;
         private EventWaitHandle PlaybackEndedEventWaitHandle;
-        private Thread AudioPlaybackThread;
+        private WaitHandle[] PlaybackWaitHandles;
 
         #endregion
 
@@ -56,12 +53,12 @@
         /// (40ms seems to work under Vista).
         /// </summary>
         /// <param name="renderer">The renderer.</param>
-        /// <param name="deviceId">Selected device</param>
+        /// <param name="deviceId">Selected device.</param>
         public DirectSoundPlayer(AudioRenderer renderer, Guid deviceId)
+            : base(nameof(DirectSoundPlayer))
         {
             Renderer = renderer;
             DeviceId = deviceId == Guid.Empty ? DefaultPlaybackDeviceId : deviceId;
-            DesiredLatency = 40;
             WaveFormat = renderer.WaveFormat;
         }
 
@@ -70,42 +67,33 @@
         #region Properties
 
         /// <inheritdoc />
+        ILoggingHandler ILoggingSource.LoggingHandler => Renderer?.MediaCore;
+
+        /// <inheritdoc />
         public AudioRenderer Renderer { get; }
 
         /// <inheritdoc />
         public PlaybackState PlaybackState { get; private set; } = PlaybackState.Stopped;
 
         /// <inheritdoc />
-        public bool IsRunning => !IsDisposed && !IsCancellationPending.Value && !PlaybackFinished.IsCompleted;
+        public bool IsRunning => WorkerState == WorkerState.Running;
 
         /// <inheritdoc />
-        public int DesiredLatency { get; }
-
-        /// <summary>
-        /// Gets a value indicating whether this instance is disposed.
-        /// </summary>
-        /// <value>
-        ///   <c>true</c> if this instance is disposed; otherwise, <c>false</c>.
-        /// </value>
-        public bool IsDisposed
-        {
-            get => m_IsDisposed.Value;
-            private set => m_IsDisposed.Value = value;
-        }
+        public int DesiredLatency { get; private set; } = 50;
 
         #endregion
 
         #region Public Methods
 
         /// <summary>
-        /// Gets the DirectSound output devices in the system
+        /// Gets the DirectSound output devices in the system.
         /// </summary>
-        /// <returns>The available DirectSound devices</returns>
-        public static List<DirectSoundDeviceInfo> EnumerateDevices()
+        /// <returns>The available DirectSound devices.</returns>
+        public static List<DirectSoundDeviceData> EnumerateDevices()
         {
             lock (DevicesEnumLock)
             {
-                EnumeratedDevices = new List<DirectSoundDeviceInfo>(32);
+                EnumeratedDevices = new List<DirectSoundDeviceData>(32);
                 NativeMethods.DirectSoundEnumerateA(EnumerateDevicesCallback, IntPtr.Zero);
                 return EnumeratedDevices;
             }
@@ -115,26 +103,94 @@
         public void Start()
         {
             if (DirectSoundDriver != null || IsDisposed)
-                throw new InvalidOperationException($"{nameof(AudioPlaybackThread)} was already started");
+                throw new InvalidOperationException($"{nameof(DirectSoundPlayer)} was already started");
 
-            PlaybackFinished.Begin();
+            InitializeDirectSound();
+            AudioBackBuffer.SetCurrentPosition(0);
+            NextSamplesWriteIndex = 0;
 
-            // Thread that processes samples
-            AudioPlaybackThread = new Thread(PerformContinuousPlayback)
-            {
-                Priority = ThreadPriority.AboveNormal,
-                IsBackground = true,
-                Name = nameof(AudioPlaybackThread)
-            };
+            // Give the buffer initial samples to work with
+            if (FeedBackBuffer(SamplesTotalSize) <= 0)
+                throw new InvalidOperationException($"Method {nameof(FeedBackBuffer)} could not write samples.");
 
-            AudioPlaybackThread.Start();
+            // Set the state to playing
+            PlaybackState = PlaybackState.Playing;
+
+            // Begin notifications on playback wait events
+            AudioBackBuffer.Play(0, 0, DirectSound.DirectSoundPlayFlags.Looping);
+
+            StartAsync();
         }
 
         /// <inheritdoc />
         public void Clear() => ClearBackBuffer();
 
+        #endregion
+
+        #region Worker Methods
+
         /// <inheritdoc />
-        public void Dispose() => Dispose(true);
+        protected override void ExecuteCycleLogic(CancellationToken ct)
+        {
+            const int FrameStartHandle = 0;
+            const int PlaybackEndHandle = 2;
+            const int CancelHandle = 3;
+            const int TimeoutHandle = WaitHandle.WaitTimeout;
+
+            // Wait for signals on frameEventWaitHandle1 (Position 0), frameEventWaitHandle2 (Position 1/2)
+            var handleIndex = WaitHandle.WaitAny(PlaybackWaitHandles, DesiredLatency * 3, false);
+
+            // Not ready yet
+            if (handleIndex == TimeoutHandle)
+                return;
+
+            // Handle cancel events
+            if (handleIndex == CancelHandle || handleIndex == PlaybackEndHandle)
+            {
+                WantedWorkerState = WorkerState.Stopped;
+                return;
+            }
+
+            NextSamplesWriteIndex = handleIndex == FrameStartHandle ? SamplesFrameSize : default;
+
+            // Only carry on playing if we can read more samples
+            if (FeedBackBuffer(SamplesFrameSize) <= 0)
+                throw new InvalidOperationException($"Method {nameof(FeedBackBuffer)} could not write samples.");
+        }
+
+        /// <inheritdoc />
+        protected override void OnCycleException(Exception ex)
+        {
+            this.LogError(Aspects.AudioRenderer, $"{nameof(DirectSoundPlayer)} faulted.", ex);
+        }
+
+        /// <inheritdoc />
+        protected override void OnDisposing()
+        {
+            // Signal Completion
+            PlaybackState = PlaybackState.Stopped;
+            CancelEvent.Set(); // causes the WaitAny to exit
+
+            try { AudioRenderBuffer.Stop(); } catch { /* Ignore exception and continue */ }
+
+            try { ClearBackBuffer(); } catch { /* Ignore exception and continue */ }
+            try { AudioBackBuffer.Stop(); } catch { /* Ignore exception and continue */ }
+        }
+
+        /// <inheritdoc />
+        protected override void Dispose(bool alsoManaged)
+        {
+            base.Dispose(alsoManaged);
+
+            if (alsoManaged)
+            {
+                // Dispose DirectSound buffer wait handles
+                PlaybackEndedEventWaitHandle?.Dispose();
+                FrameStartEventWaitHandle?.Dispose();
+                FrameEndEventWaitHandle?.Dispose();
+                CancelEvent.Dispose();
+            }
+        }
 
         #endregion
 
@@ -147,10 +203,10 @@
         /// <param name="descriptionPtr">The description string pointer.</param>
         /// <param name="modulePtr">The module string pointer.</param>
         /// <param name="contextPtr">The context pointer.</param>
-        /// <returns>The devices</returns>
+        /// <returns>The devices.</returns>
         private static bool EnumerateDevicesCallback(IntPtr deviceGuidPtr, IntPtr descriptionPtr, IntPtr modulePtr, IntPtr contextPtr)
         {
-            var device = new DirectSoundDeviceInfo();
+            var device = new DirectSoundDeviceData();
             if (deviceGuidPtr == IntPtr.Zero)
             {
                 device.Guid = Guid.Empty;
@@ -174,7 +230,7 @@
         /// </summary>
         /// <param name="eventHandle">The event handle.</param>
         /// <param name="offset">The offset.</param>
-        /// <returns>A DirectSound Position Notification</returns>
+        /// <returns>A DirectSound Position Notification.</returns>
         private static DirectSound.DirectSoundBufferPositionNotify CreatePositionNotification(WaitHandle eventHandle, uint offset) =>
             new DirectSound.DirectSoundBufferPositionNotify
             {
@@ -192,13 +248,14 @@
             // buffer. We first open the DirectSound driver, create the buffers and start the playback!
             // Open DirectSound
             DirectSoundDriver = null;
-            NativeMethods.DirectSoundCreate(ref DeviceId, out DirectSoundDriver, IntPtr.Zero);
+            var createDriverResult = NativeMethods.DirectSoundCreate(ref DeviceId, out DirectSoundDriver, IntPtr.Zero);
 
-            if (DirectSoundDriver == null) return;
+            if (DirectSoundDriver == null || createDriverResult != 0)
+                return;
 
             // Set Cooperative Level to PRIORITY (priority level can call the SetFormat and Compact methods)
             DirectSoundDriver.SetCooperativeLevel(NativeMethods.GetDesktopWindow(),
-                DirectSound.DirectSoundCooperativeLevel.Priority);
+                DirectSound.DirectSoundCooperativeLevel.Normal);
 
             // Fill BufferDescription for immediate, rendering buffer
             var renderBuffer = new DirectSound.BufferDescription
@@ -253,13 +310,13 @@
             Debug.Assert(SamplesTotalSize == (2 * SamplesFrameSize), "Invalid SamplesTotalSize vs SamplesFrameSize");
 
             // Create double buffering notifications.
-            // ReSharper disable once CommentTypo
             // Use DirectSoundNotify at Position [0, 1/2] and Stop Position (0xFFFFFFFF)
             var notifier = audioRenderBuffer as DirectSound.IDirectSoundNotify;
 
             FrameStartEventWaitHandle = new EventWaitHandle(false, EventResetMode.AutoReset);
             FrameEndEventWaitHandle = new EventWaitHandle(false, EventResetMode.AutoReset);
             PlaybackEndedEventWaitHandle = new EventWaitHandle(false, EventResetMode.AutoReset);
+            PlaybackWaitHandles = new WaitHandle[] { FrameStartEventWaitHandle, FrameEndEventWaitHandle, PlaybackEndedEventWaitHandle, CancelEvent };
 
             var notificationEvents = new[]
             {
@@ -272,89 +329,6 @@
         }
 
         /// <summary>
-        /// Processes the samples in a separate thread.
-        /// </summary>
-        private void PerformContinuousPlayback()
-        {
-            try
-            {
-                InitializeDirectSound();
-                AudioBackBuffer.SetCurrentPosition(0);
-                NextSamplesWriteIndex = 0;
-
-                int handleIndex;
-                var waitHandles = new WaitHandle[] { FrameStartEventWaitHandle, FrameEndEventWaitHandle, PlaybackEndedEventWaitHandle, CancelEvent };
-
-                // Give the buffer initial samples to work with
-                if (FeedBackBuffer(SamplesTotalSize) <= 0)
-                    throw new InvalidOperationException($"Method {nameof(FeedBackBuffer)} could not write samples.");
-
-                // Set the state to playing
-                PlaybackState = PlaybackState.Playing;
-
-                // Begin notifications on playback wait events
-                AudioBackBuffer.Play(0, 0, DirectSound.DirectSoundPlayFlags.Looping);
-
-                while (IsCancellationPending == false)
-                {
-                    // Wait for signals on frameEventWaitHandle1 (Position 0), frameEventWaitHandle2 (Position 1/2)
-                    handleIndex = WaitHandle.WaitAny(waitHandles, 3 * DesiredLatency, false);
-
-                    if (handleIndex >= 3)
-                        break;
-                    if (handleIndex == 2 || handleIndex == WaitHandle.WaitTimeout)
-                        throw new TimeoutException("DirectSound notification timed out");
-                    NextSamplesWriteIndex = handleIndex == 0 ? SamplesFrameSize : 0;
-
-                    // Only carry on playing if we can read more samples
-                    if (FeedBackBuffer(SamplesFrameSize) <= 0)
-                        throw new InvalidOperationException($"Method {nameof(FeedBackBuffer)} could not write samples.");
-                }
-            }
-            catch (Exception e)
-            {
-                // Do nothing (except report error)
-                Renderer?.MediaCore?.Log(MediaLogMessageType.Error,
-                    $"{nameof(DirectSoundPlayer)} faulted. - {e.GetType().Name}: {e.Message}");
-            }
-            finally
-            {
-                try { AudioRenderBuffer.Stop(); } catch { /* Ignore exception and continue */ }
-
-                try { ClearBackBuffer(); } catch { /* Ignore exception and continue */ }
-                try { AudioBackBuffer.Stop(); } catch { /* Ignore exception and continue */ }
-
-                // Signal Completion
-                PlaybackState = PlaybackState.Stopped;
-                PlaybackFinished.Complete();
-            }
-        }
-
-        /// <summary>
-        /// Releases unmanaged and - optionally - managed resources.
-        /// </summary>
-        /// <param name="alsoManaged"><c>true</c> to release both managed and unmanaged resources; <c>false</c> to release only unmanaged resources.</param>
-        private void Dispose(bool alsoManaged)
-        {
-            if (IsDisposed) return;
-
-            if (alsoManaged)
-            {
-                IsCancellationPending.Value = true; // Causes the playback loop to exit
-                CancelEvent.Set(); // causes the WaitAny to exit
-                PlaybackFinished.Wait(); // waits for the playback loop to finish
-
-                PlaybackEndedEventWaitHandle.Dispose();
-                FrameStartEventWaitHandle.Dispose();
-                FrameEndEventWaitHandle.Dispose();
-                CancelEvent.Dispose();
-                PlaybackFinished.Dispose();
-            }
-
-            IsDisposed = true;
-        }
-
-        /// <summary>
         /// Determines whether the SecondaryBuffer is lost.
         /// </summary>
         /// <returns>
@@ -364,10 +338,10 @@
             AudioBackBuffer.GetStatus().HasFlag(DirectSound.DirectSoundBufferStatus.BufferLost);
 
         /// <summary>
-        /// Convert ms to bytes size according to WaveFormat
+        /// Convert ms to bytes size according to WaveFormat.
         /// </summary>
-        /// <param name="millis">The ms</param>
-        /// <returns>number of bytes</returns>
+        /// <param name="millis">The milliseconds.</param>
+        /// <returns>number of bytes.</returns>
         private int MillisToBytes(int millis)
         {
             var bytes = millis * (WaveFormat.AverageBytesPerSecond / 1000);
@@ -376,7 +350,7 @@
         }
 
         /// <summary>
-        /// Clean up the SecondaryBuffer
+        /// Clean up the SecondaryBuffer.
         /// </summary>
         /// <remarks>
         /// <para>
@@ -420,10 +394,10 @@
         }
 
         /// <summary>
-        /// Feeds the SecondaryBuffer with the WaveStream
+        /// Feeds the SecondaryBuffer with the WaveStream.
         /// </summary>
-        /// <param name="bytesToCopy">number of bytes to feed</param>
-        /// <returns>The number of bytes that were read</returns>
+        /// <param name="bytesToCopy">number of bytes to feed.</param>
+        /// <returns>The number of bytes that were read.</returns>
         private int FeedBackBuffer(int bytesToCopy)
         {
             // Restore the buffer if lost
@@ -473,17 +447,17 @@
         private static class DirectSound
         {
             /// <summary>
-            /// DirectSound default capture device GUID
+            /// DirectSound default capture device GUID.
             /// </summary>
             public static readonly Guid DefaultCaptureDeviceId = new Guid("DEF00001-9C6D-47ED-AAF1-4DDA8F2B5C03");
 
             /// <summary>
-            /// DirectSound default device for voice playback
+            /// DirectSound default device for voice playback.
             /// </summary>
             public static readonly Guid DefaultVoicePlaybackDeviceId = new Guid("DEF00002-9C6D-47ED-AAF1-4DDA8F2B5C03");
 
             /// <summary>
-            /// DirectSound default device for voice capture
+            /// DirectSound default device for voice capture.
             /// </summary>
             public static readonly Guid DefaultVoiceCaptureDeviceId = new Guid("DEF00003-9C6D-47ED-AAF1-4DDA8F2B5C03");
 
@@ -557,7 +531,7 @@
             }
 
             /// <summary>
-            /// IDirectSound interface
+            /// IDirectSound interface.
             /// </summary>
             [ComImport]
             [Guid("279AFA83-4981-11CE-A521-0020AF0BE560")]
@@ -583,7 +557,7 @@
             }
 
             /// <summary>
-            /// IDirectSoundBuffer interface
+            /// IDirectSoundBuffer interface.
             /// </summary>
             [ComImport]
             [Guid("279AFA85-4981-11CE-A521-0020AF0BE560")]
@@ -632,7 +606,7 @@
             }
 
             /// <summary>
-            /// IDirectSoundNotify interface
+            /// IDirectSoundNotify interface.
             /// </summary>
             [ComImport]
             [Guid("b0210783-89cd-11d0-af08-00a0c925cd16")]
@@ -651,10 +625,23 @@
                 public IntPtr NotifyHandle;
 
                 /// <inheritdoc />
-                public bool Equals(DirectSoundBufferPositionNotify other) => NotifyHandle == other.NotifyHandle;
+                public bool Equals(DirectSoundBufferPositionNotify other) =>
+                    NotifyHandle == other.NotifyHandle;
+
+                /// <inheritdoc />
+                public override bool Equals(object obj)
+                {
+                    if (obj is DirectSoundBufferPositionNotify other)
+                        return Equals(other);
+
+                    return false;
+                }
+
+                /// <inheritdoc />
+                public override int GetHashCode() =>
+                    throw new NotSupportedException($"{nameof(DirectSoundBufferPositionNotify)} does not support hashing.");
             }
 
-            // ReSharper disable NotAccessedField.Local
 #pragma warning disable SA1401 // Fields must be private
 #pragma warning disable 649 // Field is never assigned
 
@@ -685,7 +672,6 @@
                 public int PlayCpuOverhead;
             }
 
-            // ReSharper restore NotAccessedField.Local
 #pragma warning restore 649 // Field is never assigned
 #pragma warning restore SA1401 // Fields must be private
         }
@@ -696,27 +682,27 @@
             private const string User32Lib = "user32.dll";
 
             /// <summary>
-            /// Instantiate DirectSound from the DLL
+            /// Instantiate DirectSound from the DLL.
             /// </summary>
             /// <param name="deviceGuid">The GUID.</param>
             /// <param name="directSound">The direct sound.</param>
             /// <param name="pUnkOuter">The p unk outer.</param>
-            /// <returns>The result code</returns>
+            /// <returns>The result code.</returns>
             [DllImport(DirectSoundLib, EntryPoint = nameof(DirectSoundCreate), SetLastError = true, CharSet = CharSet.Unicode, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
             public static extern int DirectSoundCreate(ref Guid deviceGuid, [Out, MarshalAs(UnmanagedType.Interface)] out DirectSound.IDirectSound directSound, IntPtr pUnkOuter);
 
             /// <summary>
             /// The DirectSoundEnumerate function enumerates the DirectSound drivers installed in the system.
             /// </summary>
-            /// <param name="lpDSEnumCallback">callback function</param>
-            /// <param name="lpContext">User context</param>
+            /// <param name="lpDSEnumCallback">callback function.</param>
+            /// <param name="lpContext">User context.</param>
             [DllImport(DirectSoundLib, EntryPoint = nameof(DirectSoundEnumerateA), SetLastError = true, CharSet = CharSet.Unicode, ExactSpelling = true, CallingConvention = CallingConvention.StdCall)]
             public static extern void DirectSoundEnumerateA(DirectSound.EnumerateDevicesDelegate lpDSEnumCallback, IntPtr lpContext);
 
             /// <summary>
             /// Gets the HANDLE of the desktop window.
             /// </summary>
-            /// <returns>HANDLE of the Desktop window</returns>
+            /// <returns>HANDLE of the Desktop window.</returns>
             [DllImport(User32Lib)]
             public static extern IntPtr GetDesktopWindow();
         }
