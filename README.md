@@ -16,7 +16,7 @@
 - Current Status: (2019-12-28) - Release 4.2.330 is now available, (see the <a href="https://github.com/unosquare/ffmediaelement/releases">Releases</a>)
 - NuGet Package available here: https://www.nuget.org/packages/FFME.Windows/
 - FFmpeg Version: 4.2.1 <a href="https://ffmpeg.zeranoe.com/builds/win32/shared/ffmpeg-4.2.1-win32-shared.zip">32-bit</a> or <a href="https://ffmpeg.zeranoe.com/builds/win64/shared/ffmpeg-4.2.1-win64-shared.zip">64-bit</a>
-- SoundTouch Audio Processing Library 2.1.1.0 <a href="https://www.surina.net/soundtouch/download.html">copy 'SoundTouch_x64.dll' to c:\ffmpeg\x64 if run Window 64 bit and then rename to 'SoundTouch.dll'</a>
+- SoundTouch Audio Processing Library 2.1.1.0 <a href="https://www.surina.net/soundtouch/download.html">SoundTouch Library</a>
 - BREAKING CHANGE: Starting realease 4.1.320 the `Source` dependency property has been downgraded to a notification property. Please use the asynchronous `Open` and `Close` methods instead.
 
 *Please note the current NuGet realease might require a different version of the FFmpeg binaries than the ones of the current state of the source code.*
@@ -29,7 +29,7 @@ Here is a quick guide on how to get started.
 3. You need FFmpeg **shared** binaries (64 or 32 bit, depending on your app's target architecture). Build your own or download a compatible build from [Zeranoe FFmpeg Builds site](https://ffmpeg.zeranoe.com/builds/).
 4. Your FFmpeg build should have a `bin` folder with 3 exe files and some dll files. Copy all those files to a folder such as `c:\ffmpeg`
 5. Within you application's startup code (`Main` method), set `Unosquare.FFME.Library.FFmpegDirectory = @"c:\ffmpeg";`.
-6. SoundTouch Audio Processing Library 2.1.1.0 <a href="https://www.surina.net/soundtouch/download.html">SoundTouch library</a>
+6. Download SoundTouch Audio Processing Library 2.1.1.0 <a href="https://www.surina.net/soundtouch/download.html">SoundTouch library</a>
 and then copy 'SoundTouch_x64.dll' to c:\ffmpeg\x64 if run Window 64 bit and then rename to 'SoundTouch.dll'. copy 'SoundTouch.dll' to c:\ffmpeg\x86 if run on window 32 bit.
 7. Use the FFME `MediaElement` control as any other WPF control.
 For example: In your `MainForm.xaml`, add the namespace: `xmlns:ffme="clr-namespace:Unosquare.FFME;assembly=ffme.win"` and then add the FFME control your window's XAML: `<ffme:MediaElement x:Name="Media" Background="Gray" LoadedBehavior="Play" UnloadedBehavior="Manual" />` 
