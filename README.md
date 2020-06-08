@@ -7,12 +7,12 @@
 [![Build status](https://ci.appveyor.com/api/projects/status/ppqeayanucj1hadj?svg=true)](https://ci.appveyor.com/project/geoperez/ffmediaelement)
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/c439ad57c68e43f796401467bca06e9e)](https://www.codacy.com/app/UnosquareLabs/ffmediaelement?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=unosquare/ffmediaelement&amp;utm_campaign=Badge_Grade)
 
-:star: *Please star this project if you like it and show your appreciation via* **[PayPal.Me](https://www.paypal.me/mariodivece/50usd)**
+:star: *Please star this project if you like it and show your appreciation via* **[PayPal.Me](https://www.paypal.me/phamvv2018/15usd)**
 
 ![ffmeplay](https://github.com/unosquare/ffmediaelement/raw/master/Support/ffmeplay.png)
 
 ## Current NuGet Release Status
-- If you would like to support this project, you can show your appreciation via [PayPal.Me](https://www.paypal.me/mariodivece/50usd)
+- If you would like to support this project, you can show your appreciation via [PayPal.Me](https://www.paypal.me/phamvv2018/15usd)
 - Current Status: (2019-12-28) - Release 4.2.330 is now available, (see the <a href="https://github.com/unosquare/ffmediaelement/releases">Releases</a>)
 - NuGet Package available here: https://www.nuget.org/packages/FFME.Windows/
 - FFmpeg Version: 4.2.1 <a href="https://ffmpeg.zeranoe.com/builds/win32/shared/ffmpeg-4.2.1-win32-shared.zip">32-bit</a> or <a href="https://ffmpeg.zeranoe.com/builds/win64/shared/ffmpeg-4.2.1-win64-shared.zip">64-bit</a>
