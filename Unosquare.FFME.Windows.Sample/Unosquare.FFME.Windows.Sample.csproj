@@ -31,6 +31,8 @@
     <Copyright>Unosquare SA de CV, Mario Di Vece, and Contributors, (C) 2015-2019</Copyright>
     <PackageProjectUrl>https://github.com/unosquare/ffmediaelement</PackageProjectUrl>
     <ApplicationIcon>ffmpeg.ico</ApplicationIcon>
+    <AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>
+    <StartupObject>Unosquare.FFME.Windows.Sample.App</StartupObject>
   </PropertyGroup>
 
   <PropertyGroup Condition="'$(Configuration)' == 'Debug'">

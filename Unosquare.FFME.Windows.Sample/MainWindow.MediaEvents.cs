@@ -355,38 +355,36 @@
             switch (StreamCycleMediaType)
             {
                 case MediaType.Audio:
-                    currentIndex = availableStreams.IndexOf(e.Options.AudioStream);
+                    {
+                        currentIndex = availableStreams.IndexOf(e.Options.AudioStream);
+                        currentIndex += 1;
+                        if (currentIndex >= (availableStreams.Count - 1))
+                            currentIndex = 0;
+                        e.Options.AudioStream = availableStreams[currentIndex];
+                    }
+
                     break;
 
                 case MediaType.Video:
-                    currentIndex = availableStreams.IndexOf(e.Options.VideoStream);
+                    {
+                        currentIndex = availableStreams.IndexOf(e.Options.VideoStream);
+                        currentIndex += 1;
+                        if (currentIndex >= availableStreams.Count)
+                            currentIndex = 0;
+                        e.Options.VideoStream = availableStreams[currentIndex];
+                    }
+
                     break;
 
                 case MediaType.Subtitle:
-                    currentIndex = availableStreams.IndexOf(e.Options.SubtitleStream);
-                    break;
+                    {
+                        currentIndex = availableStreams.IndexOf(e.Options.SubtitleStream);
+                        currentIndex += 1;
+                        if (currentIndex >= availableStreams.Count)
+                            currentIndex = 0;
+                        e.Options.SubtitleStream = availableStreams[currentIndex];
+                    }
 
-                default:
-                    return;
-            }
-
-            currentIndex += 1;
-            if (currentIndex >= availableStreams.Count)
-                currentIndex = 0;
-
-            var newStream = availableStreams[currentIndex];
-            switch (StreamCycleMediaType)
-            {
-                case MediaType.Audio:
-                    e.Options.AudioStream = newStream;
-                    break;
-
-                case MediaType.Video:
-                    e.Options.VideoStream = newStream;
-                    break;
-
-                case MediaType.Subtitle:
-                    e.Options.SubtitleStream = newStream;
                     break;
 
                 default:
