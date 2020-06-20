@@ -746,7 +746,7 @@
                 var realBytesToRead = Math.Min(AudioBuffer.ReadableCount, bytesToRead);
                 if (realBytesToRead == 0) break;
 
-                realBytesToRead = Convert.ToInt32((realBytesToRead * 1.0).ToMultipleOf(SampleBlockSize));
+                realBytesToRead = Convert.ToInt32((realBytesToRead * speedRatio).ToMultipleOf(SampleBlockSize));
                 AudioBuffer.Read(realBytesToRead, ReadBuffer, 0);
                 Buffer.BlockCopy(ReadBuffer, 0, AudioProcessorBuffer, 0, realBytesToRead);
                 AudioProcessor.PutSamplesI16(AudioProcessorBuffer, Convert.ToUInt32(realBytesToRead / SampleBlockSize));
