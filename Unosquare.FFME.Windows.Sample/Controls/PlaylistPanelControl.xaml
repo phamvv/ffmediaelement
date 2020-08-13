@@ -48,7 +48,7 @@
                     </Grid>
                 </Border>
                 <Grid Grid.Column="1">
-                    <ToggleButton IsChecked="{Binding Playlist.IsInOpenMode}" DockPanel.Dock="Top" Style="{DynamicResource ModernToggleButtonStyle}" x:Name="AddToggleButton" ToolTip="Open ...">
+                    <ToggleButton IsChecked="{Binding Playlist.IsInOpenMode}" DockPanel.Dock="Top" Style="{DynamicResource ModernToggleButtonStyle}" x:Name="AddToggleButton" ToolTip="Open ..." Click="AddToggleButton_Click">
                         <Path Stretch="Uniform" Data="{Binding Source={StaticResource AddIcon}, Path=Data}" Fill="{Binding Path=Foreground, RelativeSource={RelativeSource AncestorType={x:Type ToggleButton}}}" />
                     </ToggleButton>
                 </Grid>

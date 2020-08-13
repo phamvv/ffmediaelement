@@ -1,6 +1,7 @@
 ﻿namespace Unosquare.FFME.Windows.Sample.Controls
 {
     using Foundation;
+    using Microsoft.Win32;
     using System;
     using System.Windows;
     using System.Windows.Controls.Primitives;
@@ -91,6 +92,16 @@
         private void FocusFileBox()
         {
             FocusTextBox(OpenFileTextBox);
+        }
+
+        private void AddToggleButton_Click(object sender, RoutedEventArgs e)
+        {
+            OpenFileDialog op = new OpenFileDialog();
+            op.ShowDialog();
+            if(op.FileName != null)
+            {
+                OpenFileTextBox.Text = op.FileName;
+            }
         }
     }
 }

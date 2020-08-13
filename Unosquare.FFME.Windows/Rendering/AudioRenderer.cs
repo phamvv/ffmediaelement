@@ -660,6 +660,7 @@
             var currentGroupSizeW = Convert.ToInt32(groupSize);
             var currentGroupSizeF = groupSize - currentGroupSizeW;
             double leftSamples;
+
             double rightSamples;
             var isLeftSample = true;
             short sample;
@@ -669,6 +670,7 @@
             {
                 // Extract left and right samples
                 leftSamples = 0;
+
                 rightSamples = 0;
                 samplesToAverage = 0;
 
@@ -694,6 +696,7 @@
 
                     // compute an average of the samples
                     leftSamples /= samplesToAverage;
+
                     rightSamples /= samplesToAverage;
                 }
                 else
@@ -703,12 +706,16 @@
                     // Another option: currentGroupSizeW * SampleBlockSize / BytesPerSample / 2
                     samplesToAverage = 1;
                     leftSamples = ReadBuffer.GetAudioSample(sourceOffset);
+
                     rightSamples = ReadBuffer.GetAudioSample(sourceOffset + Constants.AudioBytesPerSample);
                 }
 
                 // Write the samples
                 ReadBuffer.PutAudioSample(targetOffset, Convert.ToInt16(leftSamples));
+
                 ReadBuffer.PutAudioSample(targetOffset + Constants.AudioBytesPerSample, Convert.ToInt16(rightSamples));
+
+               // ReadBuffer.PutAudioSample(targetOffset + Constants.AudioBytesPerSample, Convert.ToInt16(leftSamples));
 
                 // advance the base source offset
                 currentGroupSizeW = Convert.ToInt32(groupSize + currentGroupSizeF);
@@ -774,7 +781,6 @@
             {
                 for (var sourceBufferOffset = 0; sourceBufferOffset < requestedBytes; sourceBufferOffset++)
                     targetBuffer[targetBufferOffset + sourceBufferOffset] = 0;
-
                 return;
             }
 
